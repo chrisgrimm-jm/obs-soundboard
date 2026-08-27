@@ -1,0 +1,5 @@
+.deps/
+build/
+build_*/
+.cache/
+*.o
