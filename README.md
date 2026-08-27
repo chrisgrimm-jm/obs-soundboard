@@ -50,7 +50,7 @@ Every clip is independent, can be trimmed to a specific in/out point, can be rou
 ## Features
 
 ### Dock Controls
-Each clip in your Soundboard scene gets its own pad in the dock. Pads turn green while that clip is actively playing.
+Each clip in your Soundboard scene gets its own pad in the dock. Click to play, click again while it's playing to stop it early. Pads turn green while that clip is actively playing.
 
 ### Per-Clip Trim + Outputs
 Click the small **⚙** button under any pad to open its settings:

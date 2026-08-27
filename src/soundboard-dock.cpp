@@ -190,7 +190,12 @@ void SoundboardDock::pollPlayingState()
 
 void SoundboardDock::onPadClicked(const QString &sourceName)
 {
-    SoundboardManager::instance().play(sourceName.toStdString());
+    auto &mgr = SoundboardManager::instance();
+    std::string name = sourceName.toStdString();
+    if (mgr.isPlaying(name))
+        mgr.stopOne(name);
+    else
+        mgr.play(name);
 }
 
 void SoundboardDock::onPadSettingsClicked(const QString &sourceName)
