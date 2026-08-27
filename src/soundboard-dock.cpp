@@ -44,14 +44,6 @@ static const char *kSettingsBtn =
     "}"
     "QPushButton:hover { color: #bbb; border-color: #555; }";
 
-static const char *kPadSettingsBtn =
-    "QPushButton {"
-    "  background: #1a1a1a; color: #666;"
-    "  border: 1px solid #333; border-radius: 3px;"
-    "  font-size: 10px; padding: 1px;"
-    "}"
-    "QPushButton:hover { color: #aaa; border-color: #555; }";
-
 // ── Constructor ───────────────────────────────────────────────────────────────
 
 SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
@@ -140,30 +132,20 @@ void SoundboardDock::refresh()
     for (const auto &clip : clips) {
         QString sname = QString::fromStdString(clip.sourceName);
 
-        auto *tile = new QWidget();
-        auto *tileLayout = new QVBoxLayout(tile);
-        tileLayout->setContentsMargins(0, 0, 0, 0);
-        tileLayout->setSpacing(2);
-
         auto *pad = new QPushButton(sname);
         pad->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         pad->setMinimumHeight(56);
+        pad->setToolTip("Click to play/stop — right-click for trim & monitoring settings");
         stylePad(pad, false);
         connect(pad, &QPushButton::clicked, this, [this, sname]() {
             onPadClicked(sname);
         });
-        tileLayout->addWidget(pad);
-
-        auto *settingsBtn = new QPushButton("⚙");
-        settingsBtn->setStyleSheet(kPadSettingsBtn);
-        settingsBtn->setFixedHeight(16);
-        settingsBtn->setToolTip("Trim / monitoring settings for this clip");
-        connect(settingsBtn, &QPushButton::clicked, this, [this, sname]() {
+        pad->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(pad, &QPushButton::customContextMenuRequested, this, [this, sname]() {
             onPadSettingsClicked(sname);
         });
-        tileLayout->addWidget(settingsBtn);
 
-        grid->addWidget(tile, row, col);
+        grid->addWidget(pad, row, col);
         m_pads[sname] = pad;
 
         if (++col >= columns) { col = 0; row++; }

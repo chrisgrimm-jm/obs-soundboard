@@ -53,7 +53,7 @@ Every clip is independent, can be trimmed to a specific in/out point, can be rou
 Each clip in your Soundboard scene gets its own pad in the dock. Click to play, click again while it's playing to stop it early. Pads turn green while that clip is actively playing.
 
 ### Per-Clip Trim + Outputs
-Click the small **⚙** button under any pad to open its settings:
+Right-click any pad to open its settings:
 - **Start (in point)** / **Duration** — trims playback to a specific range of the file; duration `0` plays to the file's natural end.
 - **Monitoring** — in addition to always playing through the main program mix, a clip can also be sent to OBS's single Monitoring Device (**OBS Settings → Audio → Advanced → Monitoring Device**, set once to your headphones or an external monitor's audio output). Every monitored clip shares that one device — OBS doesn't support routing different clips to different physical outputs.
 - **Test** — plays the clip immediately with the pending settings applied.
