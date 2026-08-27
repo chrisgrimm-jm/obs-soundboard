@@ -1,6 +1,7 @@
 #include "soundboard-dock.hpp"
 #include "soundboard-manager.hpp"
 #include "soundboard-settings.hpp"
+#include "soundboard-item-settings.hpp"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -42,6 +43,14 @@ static const char *kSettingsBtn =
     "  font-size: 11px; padding: 3px 10px;"
     "}"
     "QPushButton:hover { color: #bbb; border-color: #555; }";
+
+static const char *kPadSettingsBtn =
+    "QPushButton {"
+    "  background: #1a1a1a; color: #666;"
+    "  border: 1px solid #333; border-radius: 3px;"
+    "  font-size: 10px; padding: 1px;"
+    "}"
+    "QPushButton:hover { color: #aaa; border-color: #555; }";
 
 // ── Constructor ───────────────────────────────────────────────────────────────
 
@@ -131,6 +140,11 @@ void SoundboardDock::refresh()
     for (const auto &clip : clips) {
         QString sname = QString::fromStdString(clip.sourceName);
 
+        auto *tile = new QWidget();
+        auto *tileLayout = new QVBoxLayout(tile);
+        tileLayout->setContentsMargins(0, 0, 0, 0);
+        tileLayout->setSpacing(2);
+
         auto *pad = new QPushButton(sname);
         pad->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         pad->setMinimumHeight(56);
@@ -138,7 +152,18 @@ void SoundboardDock::refresh()
         connect(pad, &QPushButton::clicked, this, [this, sname]() {
             onPadClicked(sname);
         });
-        grid->addWidget(pad, row, col);
+        tileLayout->addWidget(pad);
+
+        auto *settingsBtn = new QPushButton("⚙");
+        settingsBtn->setStyleSheet(kPadSettingsBtn);
+        settingsBtn->setFixedHeight(16);
+        settingsBtn->setToolTip("Trim / monitoring settings for this clip");
+        connect(settingsBtn, &QPushButton::clicked, this, [this, sname]() {
+            onPadSettingsClicked(sname);
+        });
+        tileLayout->addWidget(settingsBtn);
+
+        grid->addWidget(tile, row, col);
         m_pads[sname] = pad;
 
         if (++col >= columns) { col = 0; row++; }
@@ -166,6 +191,12 @@ void SoundboardDock::pollPlayingState()
 void SoundboardDock::onPadClicked(const QString &sourceName)
 {
     SoundboardManager::instance().play(sourceName.toStdString());
+}
+
+void SoundboardDock::onPadSettingsClicked(const QString &sourceName)
+{
+    SoundboardItemSettings dlg(sourceName, this);
+    dlg.exec();
 }
 
 void SoundboardDock::onStopAllClicked()

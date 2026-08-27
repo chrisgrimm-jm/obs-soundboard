@@ -2,8 +2,17 @@
 
 #include <obs-module.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <functional>
+#include <cstdint>
+
+// Per-clip trim + monitoring config.
+struct SoundboardClipConfig {
+    double startSec    = 0.0; // in-point: seek here on every play()
+    double durationSec = 0.0; // out-point, as a length; 0 = play to natural end
+    bool   monitor      = false; // also send to OBS's Monitoring Device (headphones/etc.)
+};
 
 class SoundboardManager {
 public:
@@ -32,8 +41,15 @@ public:
 
     // ── Playback control ─────────────────────────────────────────────────────
     void play(const std::string &sourceName);
+    void stopOne(const std::string &sourceName);
     void stopAll();
     bool isPlaying(const std::string &sourceName) const;
+
+    // ── Per-clip config (trim + monitoring) ──────────────────────────────────
+    SoundboardClipConfig clipConfig(const std::string &sourceName) const;
+    // Stores the config and immediately applies the monitoring half of it to
+    // the live source (start/duration only take effect on the next play()).
+    void setClipConfig(const std::string &sourceName, const SoundboardClipConfig &cfg);
 
     // ── Setup helper ─────────────────────────────────────────────────────────
     // Creates the soundboard scene if missing, nests it at the top of every
@@ -57,6 +73,7 @@ private:
     void unregisterAllHotkeys();
     void connectSceneSignals(obs_source_t *sceneSource);
     void disconnectSceneSignals(obs_source_t *sceneSource);
+    void applyMonitoring(const std::string &sourceName);
 
     static void cbItemAdd(void *data, calldata_t *cd);
     static void cbItemRemove(void *data, calldata_t *cd);
@@ -73,6 +90,11 @@ private:
     std::string m_dockState;
 
     std::vector<HotkeyEntry> m_hotkeys;
+
+    std::unordered_map<std::string, SoundboardClipConfig> m_clipConfig;
+    // Bumped on every play() so a stale duration-timeout from a prior
+    // trigger can't stop a clip that's since been retriggered.
+    std::unordered_map<std::string, uint64_t> m_playGen;
 
     RefreshCallback m_refreshCb;
 };

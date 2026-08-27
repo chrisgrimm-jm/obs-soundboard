@@ -1,0 +1,107 @@
+# OBS Soundboard
+
+A plugin for OBS Studio that adds a broadcast-style soundboard — one scene holding all your sound clips, nested on top of every other scene (same idea as a downstream keyer), with a dock that punches clips in on demand.
+
+Built by [Jomboy Media](https://jomboymedia.com).
+
+---
+
+## What It Does
+
+You create one OBS scene that holds every sound clip you might want to fire during a show. The plugin adds that scene as a layer on top of every other scene in your collection (audio-only sources render no pixels, so it never gets in the way visually), then gives you a dock panel with a play button per clip.
+
+Every clip is independent, can be trimmed to a specific in/out point, can be routed to a monitoring device in addition to the main mix, and can be fired from the dock, a hotkey, or Bitfocus Companion.
+
+---
+
+## Installation
+
+### Windows
+1. Download `obs-soundboard-windows-x64.zip` from the [latest release](../../releases/latest)
+2. Extract and copy `obs-soundboard.dll` to `C:\Program Files\obs-studio\obs-plugins\64bit\`
+3. Restart OBS
+
+### macOS
+1. Download `obs-soundboard-macos-universal.tar.xz` from the [latest release](../../releases/latest)
+2. Extract and copy the `.plugin` bundle to `~/Library/Application Support/obs-studio/plugins/`
+3. Restart OBS
+
+### Linux
+1. Download the `.deb` from the [latest release](../../releases/latest)
+2. Run `sudo dpkg -i obs-soundboard-*.deb`
+3. Restart OBS
+
+---
+
+## Setup
+
+1. **Create your Soundboard scene** — Make a new scene in OBS (e.g. `Soundboard`) and add each sound clip as a **Media Source** (Add Source → Media Source, one per clip).
+
+2. **Open the dock** — Go to **Docks → Soundboard**.
+
+3. **Configure the plugin** — Click the **Settings** button in the dock, select your Soundboard scene from the dropdown, and click **Add Soundboard scene to all scenes**. This nests it into your entire scene collection, on top of everything.
+
+4. **Go live** — Click pads in the dock to fire clips during your show.
+
+> If you add new scenes after initial setup, click **Add Soundboard scene to all scenes** again to include them.
+
+---
+
+## Features
+
+### Dock Controls
+Each clip in your Soundboard scene gets its own pad in the dock. Pads turn green while that clip is actively playing.
+
+### Per-Clip Trim + Outputs
+Click the small **⚙** button under any pad to open its settings:
+- **Start (in point)** / **Duration** — trims playback to a specific range of the file; duration `0` plays to the file's natural end.
+- **Monitoring** — in addition to always playing through the main program mix, a clip can also be sent to OBS's single Monitoring Device (**OBS Settings → Audio → Advanced → Monitoring Device**, set once to your headphones or an external monitor's audio output). Every monitored clip shares that one device — OBS doesn't support routing different clips to different physical outputs.
+- **Test** — plays the clip immediately with the pending settings applied.
+
+### Hotkeys
+Every clip in your Soundboard scene automatically gets a hotkey registered under **OBS Settings → Hotkeys** — look for entries starting with `Soundboard: Play`.
+
+### Bitfocus Companion Integration
+The plugin runs a local HTTP server (default port `4489`) for integration with [Bitfocus Companion](https://bitfocus.io/companion).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/status` | Returns the scene name and every clip's playing state |
+| `GET` | `/api/clips` | Same as `/api/status` |
+| `POST` | `/api/clip/:name/play` | Plays the clip |
+| `POST` | `/api/stopall` | Stops every clip |
+
+Source names in the URL must be URL-encoded. The port can be changed in Settings.
+
+---
+
+## Building From Source
+
+Requires CMake 3.28+, a C++17 compiler, and an internet connection (the build system auto-downloads OBS and Qt dependencies).
+
+**Windows**
+```
+cmake --preset windows-x64
+cmake --build --preset windows-x64
+```
+
+**macOS** (requires full Xcode.app, not just Command Line Tools — the build's own CMake config enforces the Xcode generator)
+```
+cmake --preset macos
+cmake --build --preset macos
+```
+
+**Linux**
+```
+cmake --preset ubuntu-x86_64
+cmake --build --preset ubuntu-x86_64
+```
+
+CI (`.github/workflows/`) builds all three platforms on every push to `main` and uploads them as workflow artifacts.
+
+---
+
+## Requirements
+
+- OBS Studio 28.0 or later
+- Windows 10+, macOS 12+, or Ubuntu 22.04+

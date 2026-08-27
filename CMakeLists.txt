@@ -39,6 +39,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   src/soundboard-manager.cpp
   src/soundboard-dock.cpp
   src/soundboard-settings.cpp
+  src/soundboard-item-settings.cpp
   src/companion-server.cpp
 )
 

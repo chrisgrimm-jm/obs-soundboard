@@ -4,6 +4,10 @@
 #include <util/platform.h>
 #include <callback/signal.h>
 
+#include <QCoreApplication>
+#include <QMetaObject>
+#include <QTimer>
+
 #include <cstring>
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
@@ -102,17 +106,43 @@ void SoundboardManager::play(const std::string &sourceName)
     if (!item) return;
     obs_source_t *src = obs_sceneitem_get_source(item);
     if (!src) return;
+
     obs_source_media_restart(src);
+
+    auto it = m_clipConfig.find(sourceName);
+    if (it == m_clipConfig.end()) return;
+    const SoundboardClipConfig &cfg = it->second;
+
+    if (cfg.startSec > 0.0)
+        obs_source_media_set_time(src, static_cast<int64_t>(cfg.startSec * 1000));
+
+    if (cfg.durationSec > 0.0) {
+        uint64_t gen = ++m_playGen[sourceName];
+        std::string name = sourceName;
+        int ms = static_cast<int>(cfg.durationSec * 1000);
+        // Hop onto the Qt main thread first: play() can be called from the
+        // OBS hotkey-dispatch thread, which doesn't pump a Qt event loop, so
+        // a QTimer started there would never fire.
+        QMetaObject::invokeMethod(qApp, [this, name, gen, ms]() {
+            QTimer::singleShot(ms, [this, name, gen]() {
+                if (m_playGen[name] == gen) stopOne(name);
+            });
+        }, Qt::QueuedConnection);
+    }
+}
+
+void SoundboardManager::stopOne(const std::string &sourceName)
+{
+    obs_sceneitem_t *item = findItem(sourceName);
+    if (!item) return;
+    obs_source_t *src = obs_sceneitem_get_source(item);
+    if (src) obs_source_media_stop(src);
 }
 
 void SoundboardManager::stopAll()
 {
-    for (const auto &clip : currentClips()) {
-        obs_sceneitem_t *item = findItem(clip.sourceName);
-        if (!item) continue;
-        obs_source_t *src = obs_sceneitem_get_source(item);
-        if (src) obs_source_media_stop(src);
-    }
+    for (const auto &clip : currentClips())
+        stopOne(clip.sourceName);
 }
 
 bool SoundboardManager::isPlaying(const std::string &sourceName) const
@@ -122,6 +152,39 @@ bool SoundboardManager::isPlaying(const std::string &sourceName) const
     obs_source_t *src = obs_sceneitem_get_source(item);
     if (!src) return false;
     return obs_source_media_get_state(src) == OBS_MEDIA_STATE_PLAYING;
+}
+
+// ── Per-clip config ────────────────────────────────────────────────────────────
+
+SoundboardClipConfig SoundboardManager::clipConfig(const std::string &sourceName) const
+{
+    auto it = m_clipConfig.find(sourceName);
+    return it != m_clipConfig.end() ? it->second : SoundboardClipConfig{};
+}
+
+void SoundboardManager::setClipConfig(const std::string &sourceName, const SoundboardClipConfig &cfg)
+{
+    m_clipConfig[sourceName] = cfg;
+    applyMonitoring(sourceName);
+}
+
+// Per-source audio monitoring: in addition to always going through the main
+// program mix, a monitored clip is also sent to OBS's single, globally
+// configured Monitoring Device (Settings -> Audio -> Advanced) — e.g.
+// headphones or an external monitor's audio output. OBS doesn't support
+// routing different sources to different monitor devices; there's only one
+// shared monitor device for the whole app.
+void SoundboardManager::applyMonitoring(const std::string &sourceName)
+{
+    obs_sceneitem_t *item = findItem(sourceName);
+    if (!item) return;
+    obs_source_t *src = obs_sceneitem_get_source(item);
+    if (!src) return;
+
+    auto it = m_clipConfig.find(sourceName);
+    bool monitor = it != m_clipConfig.end() && it->second.monitor;
+    obs_source_set_monitoring_type(src,
+        monitor ? OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT : OBS_MONITORING_TYPE_NONE);
 }
 
 // ── Setup helper ──────────────────────────────────────────────────────────────
@@ -226,9 +289,19 @@ void SoundboardManager::disconnectSceneSignals(obs_source_t *sceneSource)
     signal_handler_disconnect(sh, "item_remove", cbItemRemove, this);
 }
 
-void SoundboardManager::cbItemAdd(void *data, calldata_t *)
+void SoundboardManager::cbItemAdd(void *data, calldata_t *cd)
 {
     auto *mgr = static_cast<SoundboardManager *>(data);
+
+    obs_sceneitem_t *item = nullptr;
+    calldata_get_ptr(cd, "item", &item);
+    if (item) {
+        obs_source_t *src = obs_sceneitem_get_source(item);
+        if (src) {
+            const char *name = obs_source_get_name(src);
+            if (name) mgr->applyMonitoring(name);
+        }
+    }
 
     mgr->unregisterAllHotkeys();
     mgr->registerHotkeys();
@@ -264,6 +337,24 @@ void SoundboardManager::loadSettings()
         const char *ds = obs_data_get_string(root, "dock_state");
         if (ds) m_dockState = ds;
 
+        obs_data_array_t *clips = obs_data_get_array(root, "clip_config");
+        if (clips) {
+            size_t count = obs_data_array_count(clips);
+            for (size_t i = 0; i < count; i++) {
+                obs_data_t *entry = obs_data_array_item(clips, i);
+                const char *name = obs_data_get_string(entry, "source");
+                if (name && *name) {
+                    SoundboardClipConfig cfg;
+                    cfg.startSec    = obs_data_get_double(entry, "start_sec");
+                    cfg.durationSec = obs_data_get_double(entry, "duration_sec");
+                    cfg.monitor     = obs_data_get_bool(entry, "monitor");
+                    m_clipConfig[name] = cfg;
+                }
+                obs_data_release(entry);
+            }
+            obs_data_array_release(clips);
+        }
+
         obs_data_release(root);
     }
 
@@ -273,6 +364,10 @@ void SoundboardManager::loadSettings()
         obs_source_release(src);
     }
     registerHotkeys();
+
+    // Apply saved monitoring settings to any items already in the scene.
+    for (const auto &clip : currentClips())
+        applyMonitoring(clip.sourceName);
 }
 
 void SoundboardManager::saveSettings()
@@ -285,6 +380,19 @@ void SoundboardManager::saveSettings()
     obs_data_set_string(root, "board_scene", m_sceneName.c_str());
     obs_data_set_int(root, "http_port", m_httpPort);
     obs_data_set_string(root, "dock_state", m_dockState.c_str());
+
+    obs_data_array_t *clips = obs_data_array_create();
+    for (const auto &[name, cfg] : m_clipConfig) {
+        obs_data_t *entry = obs_data_create();
+        obs_data_set_string(entry, "source",      name.c_str());
+        obs_data_set_double(entry, "start_sec",   cfg.startSec);
+        obs_data_set_double(entry, "duration_sec", cfg.durationSec);
+        obs_data_set_bool(entry,   "monitor",     cfg.monitor);
+        obs_data_array_push_back(clips, entry);
+        obs_data_release(entry);
+    }
+    obs_data_set_array(root, "clip_config", clips);
+    obs_data_array_release(clips);
 
     char *path = obs_module_config_path("settings.json");
     obs_data_save_json_safe(root, path, "tmp", "bak");

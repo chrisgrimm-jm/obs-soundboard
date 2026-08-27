@@ -3,3 +3,4 @@ build/
 build_*/
 .cache/
 *.o
+cmake/.CMakeBuildNumber

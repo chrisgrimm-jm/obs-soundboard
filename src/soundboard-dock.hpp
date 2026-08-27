@@ -20,6 +20,7 @@ private slots:
     void refresh();
     void pollPlayingState();
     void onPadClicked(const QString &sourceName);
+    void onPadSettingsClicked(const QString &sourceName);
     void onStopAllClicked();
     void onSettingsClicked();
 
