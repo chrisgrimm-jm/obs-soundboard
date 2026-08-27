@@ -5,6 +5,8 @@ on:
       pluginName:
         description: Project name detected by parsing build spec file
         value: ${{ jobs.check-event.outputs.pluginName }}
+permissions:
+  contents: write
 jobs:
   check-event:
     name: Check GitHub Event Data 🔎
@@ -169,6 +171,26 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}-dSYMs
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-dSYMs.*
 
+      # Actions artifact storage is account-wide and can fill up (shared with
+      # every other repo), which silently blocks the upload steps above with
+      # no way to get the build output until GitHub's usage counter
+      # recalculates, hours later. Release assets use separate storage, so
+      # this publishes straight there as a second, independent path to the
+      # same file.
+      - name: Publish to Dev Release 🚀
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          : Publish to Dev Release 🚀
+          gh release view dev-build >/dev/null 2>&1 || gh release create dev-build \
+            --title 'Dev Build (main)' \
+            --notes 'Latest build from main. Overwritten on every push — not a stable release.' \
+            --prerelease --target ${{ github.sha }} || true
+          gh release upload dev-build \
+            ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.* \
+            --clobber
+
       - uses: actions/cache/save@v4
         if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
         with:
@@ -243,6 +265,20 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
 
+      # See the macOS job's "Publish to Dev Release" step for why this exists.
+      - name: Publish to Dev Release 🚀
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view dev-build >/dev/null 2>&1 || gh release create dev-build \
+            --title 'Dev Build (main)' \
+            --notes 'Latest build from main. Overwritten on every push — not a stable release.' \
+            --prerelease --target ${{ github.sha }} || true
+          gh release upload dev-build \
+            ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.* \
+            --clobber
+
       - uses: actions/cache/save@v4
         if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
         with:
@@ -295,3 +331,20 @@ jobs:
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+
+      # See the macOS job's "Publish to Dev Release" step for why this exists.
+      - name: Publish to Dev Release 🚀
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Publish to Dev Release 🚀
+          gh release view dev-build 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create dev-build --title 'Dev Build (main)' `
+              --notes 'Latest build from main. Overwritten on every push — not a stable release.' `
+              --prerelease --target ${{ github.sha }}
+          }
+          $files = Get-ChildItem -Path "${{ github.workspace }}/release" `
+            -Filter "${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*"
+          gh release upload dev-build $files.FullName --clobber
