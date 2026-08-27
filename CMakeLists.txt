@@ -40,7 +40,25 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   src/soundboard-dock.cpp
   src/soundboard-settings.cpp
   src/soundboard-item-settings.cpp
+  src/soundboard-audio-engine.cpp
   src/companion-server.cpp
 )
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
+
+# miniaudio (src/third_party/miniaudio.h) is vendored third-party code we
+# don't control the warning cleanliness of; don't let it trip this project's
+# strict warning flags.
+set_source_files_properties(src/soundboard-audio-engine.cpp PROPERTIES
+  COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>"
+)
+
+if(APPLE)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+    "-framework CoreFoundation" "-framework CoreAudio" "-framework AudioToolbox"
+  )
+elseif(UNIX AND NOT APPLE)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE dl pthread m)
+endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

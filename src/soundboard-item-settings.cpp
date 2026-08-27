@@ -1,5 +1,6 @@
 #include "soundboard-item-settings.hpp"
 #include "soundboard-manager.hpp"
+#include "soundboard-audio-engine.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -8,6 +9,9 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QDialogButtonBox>
+#include <QListWidgetItem>
+
+#include <algorithm>
 
 SoundboardItemSettings::SoundboardItemSettings(const QString &sourceName, QWidget *parent)
     : QDialog(parent), m_sourceName(sourceName)
@@ -52,21 +56,30 @@ void SoundboardItemSettings::buildUI()
 
     root->addWidget(trimGroup);
 
-    auto *outGroup  = new QGroupBox("Outputs");
+    auto *outGroup  = new QGroupBox("Extra Outputs");
     auto *outLayout = new QVBoxLayout(outGroup);
 
     auto *outHint = new QLabel(
-        "Every clip always plays through the main program mix. Check this to "
-        "also send it to OBS's Monitoring Device (Settings -> Audio -> "
-        "Advanced -> Monitoring Device — set that once to your headphones or "
-        "external monitor's audio output; every monitored clip shares it).");
+        "This clip always plays through the main program mix. Check any "
+        "devices below to also play it directly out of them at the same "
+        "time — headphones, an external monitor, a second speaker, etc.");
     outHint->setWordWrap(true);
     outHint->setStyleSheet("color: #999; font-size: 11px;");
     outLayout->addWidget(outHint);
 
-    m_monitorCheck = new QCheckBox("Also send to Monitoring Device");
-    m_monitorCheck->setChecked(cfg.monitor);
-    outLayout->addWidget(m_monitorCheck);
+    m_deviceList = new QListWidget();
+    m_deviceList->setMaximumHeight(140);
+    for (const auto &device : SoundboardAudioEngine::instance().listOutputDevices()) {
+        QString label = QString::fromStdString(device.name);
+        if (device.isDefault) label += " (default)";
+        auto *item = new QListWidgetItem(label, m_deviceList);
+        item->setData(Qt::UserRole, QString::fromStdString(device.name));
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        bool checked = std::find(cfg.extraOutputDevices.begin(), cfg.extraOutputDevices.end(),
+                                  device.name) != cfg.extraOutputDevices.end();
+        item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+    }
+    outLayout->addWidget(m_deviceList);
 
     root->addWidget(outGroup);
 
@@ -88,7 +101,11 @@ void SoundboardItemSettings::applyPending()
     SoundboardClipConfig cfg;
     cfg.startSec    = m_startSpin->value();
     cfg.durationSec = m_durationSpin->value();
-    cfg.monitor     = m_monitorCheck->isChecked();
+    for (int i = 0; i < m_deviceList->count(); i++) {
+        auto *item = m_deviceList->item(i);
+        if (item->checkState() == Qt::Checked)
+            cfg.extraOutputDevices.push_back(item->data(Qt::UserRole).toString().toStdString());
+    }
     SoundboardManager::instance().setClipConfig(m_sourceName.toStdString(), cfg);
 }
 

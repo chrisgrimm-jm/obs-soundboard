@@ -2,7 +2,7 @@
 
 #include <QDialog>
 #include <QDoubleSpinBox>
-#include <QCheckBox>
+#include <QListWidget>
 #include <QString>
 
 class SoundboardItemSettings : public QDialog {
@@ -23,5 +23,5 @@ private:
 
     QDoubleSpinBox *m_startSpin    = nullptr;
     QDoubleSpinBox *m_durationSpin = nullptr;
-    QCheckBox       *m_monitorCheck = nullptr;
+    QListWidget    *m_deviceList   = nullptr;
 };

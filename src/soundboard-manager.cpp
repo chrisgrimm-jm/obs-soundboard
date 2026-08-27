@@ -1,4 +1,5 @@
 #include "soundboard-manager.hpp"
+#include "soundboard-audio-engine.hpp"
 
 #include <obs-frontend-api.h>
 #include <util/platform.h>
@@ -116,6 +117,12 @@ void SoundboardManager::play(const std::string &sourceName)
     if (cfg.startSec > 0.0)
         obs_source_media_set_time(src, static_cast<int64_t>(cfg.startSec * 1000));
 
+    if (!cfg.extraOutputDevices.empty()) {
+        std::string filePath = filePathFor(sourceName);
+        SoundboardAudioEngine::instance().play(sourceName, cfg.extraOutputDevices,
+            filePath, cfg.startSec, cfg.durationSec);
+    }
+
     if (cfg.durationSec > 0.0) {
         uint64_t gen = ++m_playGen[sourceName];
         std::string name = sourceName;
@@ -134,9 +141,11 @@ void SoundboardManager::play(const std::string &sourceName)
 void SoundboardManager::stopOne(const std::string &sourceName)
 {
     obs_sceneitem_t *item = findItem(sourceName);
-    if (!item) return;
-    obs_source_t *src = obs_sceneitem_get_source(item);
-    if (src) obs_source_media_stop(src);
+    if (item) {
+        obs_source_t *src = obs_sceneitem_get_source(item);
+        if (src) obs_source_media_stop(src);
+    }
+    SoundboardAudioEngine::instance().stopAll(sourceName);
 }
 
 void SoundboardManager::stopAll()
@@ -165,26 +174,23 @@ SoundboardClipConfig SoundboardManager::clipConfig(const std::string &sourceName
 void SoundboardManager::setClipConfig(const std::string &sourceName, const SoundboardClipConfig &cfg)
 {
     m_clipConfig[sourceName] = cfg;
-    applyMonitoring(sourceName);
 }
 
-// Per-source audio monitoring: in addition to always going through the main
-// program mix, a monitored clip is also sent to OBS's single, globally
-// configured Monitoring Device (Settings -> Audio -> Advanced) — e.g.
-// headphones or an external monitor's audio output. OBS doesn't support
-// routing different sources to different monitor devices; there's only one
-// shared monitor device for the whole app.
-void SoundboardManager::applyMonitoring(const std::string &sourceName)
+// The file path OBS's own Media Source is playing, so the extra-output audio
+// engine can play the exact same file independently. "local_file" is the
+// property id OBS's built-in ffmpeg_source (Media Source) stores it under.
+std::string SoundboardManager::filePathFor(const std::string &sourceName) const
 {
     obs_sceneitem_t *item = findItem(sourceName);
-    if (!item) return;
+    if (!item) return {};
     obs_source_t *src = obs_sceneitem_get_source(item);
-    if (!src) return;
+    if (!src) return {};
 
-    auto it = m_clipConfig.find(sourceName);
-    bool monitor = it != m_clipConfig.end() && it->second.monitor;
-    obs_source_set_monitoring_type(src,
-        monitor ? OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT : OBS_MONITORING_TYPE_NONE);
+    obs_data_t *settings = obs_source_get_settings(src);
+    const char *path = obs_data_get_string(settings, "local_file");
+    std::string result = path ? path : "";
+    obs_data_release(settings);
+    return result;
 }
 
 // ── Setup helper ──────────────────────────────────────────────────────────────
@@ -289,19 +295,9 @@ void SoundboardManager::disconnectSceneSignals(obs_source_t *sceneSource)
     signal_handler_disconnect(sh, "item_remove", cbItemRemove, this);
 }
 
-void SoundboardManager::cbItemAdd(void *data, calldata_t *cd)
+void SoundboardManager::cbItemAdd(void *data, calldata_t *)
 {
     auto *mgr = static_cast<SoundboardManager *>(data);
-
-    obs_sceneitem_t *item = nullptr;
-    calldata_get_ptr(cd, "item", &item);
-    if (item) {
-        obs_source_t *src = obs_sceneitem_get_source(item);
-        if (src) {
-            const char *name = obs_source_get_name(src);
-            if (name) mgr->applyMonitoring(name);
-        }
-    }
 
     mgr->unregisterAllHotkeys();
     mgr->registerHotkeys();
@@ -347,7 +343,20 @@ void SoundboardManager::loadSettings()
                     SoundboardClipConfig cfg;
                     cfg.startSec    = obs_data_get_double(entry, "start_sec");
                     cfg.durationSec = obs_data_get_double(entry, "duration_sec");
-                    cfg.monitor     = obs_data_get_bool(entry, "monitor");
+
+                    obs_data_array_t *devices = obs_data_get_array(entry, "extra_output_devices");
+                    if (devices) {
+                        size_t deviceCount = obs_data_array_count(devices);
+                        for (size_t d = 0; d < deviceCount; d++) {
+                            obs_data_t *deviceEntry = obs_data_array_item(devices, d);
+                            const char *deviceName = obs_data_get_string(deviceEntry, "name");
+                            if (deviceName && *deviceName)
+                                cfg.extraOutputDevices.push_back(deviceName);
+                            obs_data_release(deviceEntry);
+                        }
+                        obs_data_array_release(devices);
+                    }
+
                     m_clipConfig[name] = cfg;
                 }
                 obs_data_release(entry);
@@ -364,10 +373,6 @@ void SoundboardManager::loadSettings()
         obs_source_release(src);
     }
     registerHotkeys();
-
-    // Apply saved monitoring settings to any items already in the scene.
-    for (const auto &clip : currentClips())
-        applyMonitoring(clip.sourceName);
 }
 
 void SoundboardManager::saveSettings()
@@ -387,7 +392,17 @@ void SoundboardManager::saveSettings()
         obs_data_set_string(entry, "source",      name.c_str());
         obs_data_set_double(entry, "start_sec",   cfg.startSec);
         obs_data_set_double(entry, "duration_sec", cfg.durationSec);
-        obs_data_set_bool(entry,   "monitor",     cfg.monitor);
+
+        obs_data_array_t *devices = obs_data_array_create();
+        for (const auto &deviceName : cfg.extraOutputDevices) {
+            obs_data_t *deviceEntry = obs_data_create();
+            obs_data_set_string(deviceEntry, "name", deviceName.c_str());
+            obs_data_array_push_back(devices, deviceEntry);
+            obs_data_release(deviceEntry);
+        }
+        obs_data_set_array(entry, "extra_output_devices", devices);
+        obs_data_array_release(devices);
+
         obs_data_array_push_back(clips, entry);
         obs_data_release(entry);
     }

@@ -7,11 +7,13 @@
 #include <functional>
 #include <cstdint>
 
-// Per-clip trim + monitoring config.
+// Per-clip trim + extra-output config.
 struct SoundboardClipConfig {
     double startSec    = 0.0; // in-point: seek here on every play()
     double durationSec = 0.0; // out-point, as a length; 0 = play to natural end
-    bool   monitor      = false; // also send to OBS's Monitoring Device (headphones/etc.)
+    // Extra system playback devices (by name) this clip should also play out
+    // of directly, in addition to always going through the main OBS mix.
+    std::vector<std::string> extraOutputDevices;
 };
 
 class SoundboardManager {
@@ -45,10 +47,8 @@ public:
     void stopAll();
     bool isPlaying(const std::string &sourceName) const;
 
-    // ── Per-clip config (trim + monitoring) ──────────────────────────────────
+    // ── Per-clip config (trim + extra outputs) ───────────────────────────────
     SoundboardClipConfig clipConfig(const std::string &sourceName) const;
-    // Stores the config and immediately applies the monitoring half of it to
-    // the live source (start/duration only take effect on the next play()).
     void setClipConfig(const std::string &sourceName, const SoundboardClipConfig &cfg);
 
     // ── Setup helper ─────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ private:
     void unregisterAllHotkeys();
     void connectSceneSignals(obs_source_t *sceneSource);
     void disconnectSceneSignals(obs_source_t *sceneSource);
-    void applyMonitoring(const std::string &sourceName);
+    std::string filePathFor(const std::string &sourceName) const;
 
     static void cbItemAdd(void *data, calldata_t *cd);
     static void cbItemRemove(void *data, calldata_t *cd);

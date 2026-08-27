@@ -55,7 +55,7 @@ Each clip in your Soundboard scene gets its own pad in the dock. Click to play, 
 ### Per-Clip Trim + Outputs
 Right-click any pad to open its settings:
 - **Start (in point)** / **Duration** — trims playback to a specific range of the file; duration `0` plays to the file's natural end.
-- **Monitoring** — in addition to always playing through the main program mix, a clip can also be sent to OBS's single Monitoring Device (**OBS Settings → Audio → Advanced → Monitoring Device**, set once to your headphones or an external monitor's audio output). Every monitored clip shares that one device — OBS doesn't support routing different clips to different physical outputs.
+- **Extra Outputs** — in addition to always playing through the main program mix, a clip can also be played directly out of any number of your system's audio devices at once (headphones, an external monitor, a second speaker) — check as many as you want per clip. This plays independently of OBS's own single Monitoring Device setting, so different clips can go to different combinations of devices.
 - **Test** — plays the clip immediately with the pending settings applied.
 
 ### Hotkeys
