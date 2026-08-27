@@ -14,110 +14,110 @@
 #include <algorithm>
 
 SoundboardItemSettings::SoundboardItemSettings(const QString &sourceName, QWidget *parent)
-    : QDialog(parent), m_sourceName(sourceName)
+	: QDialog(parent),
+	  m_sourceName(sourceName)
 {
-    setWindowTitle("Clip Settings — " + sourceName);
-    setMinimumWidth(380);
-    buildUI();
+	setWindowTitle("Clip Settings — " + sourceName);
+	setMinimumWidth(380);
+	buildUI();
 }
 
 void SoundboardItemSettings::buildUI()
 {
-    auto *root = new QVBoxLayout(this);
-    root->setSpacing(12);
+	auto *root = new QVBoxLayout(this);
+	root->setSpacing(12);
 
-    auto cfg = SoundboardManager::instance().clipConfig(m_sourceName.toStdString());
+	auto cfg = SoundboardManager::instance().clipConfig(m_sourceName.toStdString());
 
-    auto *trimGroup = new QGroupBox("Trim");
-    auto *trimLayout = new QVBoxLayout(trimGroup);
+	auto *trimGroup = new QGroupBox("Trim");
+	auto *trimLayout = new QVBoxLayout(trimGroup);
 
-    auto *trimHint = new QLabel(
-        "Where playback starts and how long it plays before auto-stopping. "
-        "Duration 0 means play to the clip's natural end.");
-    trimHint->setWordWrap(true);
-    trimHint->setStyleSheet("color: #999; font-size: 11px;");
-    trimLayout->addWidget(trimHint);
+	auto *trimHint = new QLabel("Where playback starts and how long it plays before auto-stopping. "
+				    "Duration 0 means play to the clip's natural end.");
+	trimHint->setWordWrap(true);
+	trimHint->setStyleSheet("color: #999; font-size: 11px;");
+	trimLayout->addWidget(trimHint);
 
-    auto *form = new QFormLayout();
-    m_startSpin = new QDoubleSpinBox();
-    m_startSpin->setRange(0.0, 3600.0);
-    m_startSpin->setDecimals(2);
-    m_startSpin->setSuffix(" s");
-    m_startSpin->setValue(cfg.startSec);
-    form->addRow("Start (in point):", m_startSpin);
+	auto *form = new QFormLayout();
+	m_startSpin = new QDoubleSpinBox();
+	m_startSpin->setRange(0.0, 3600.0);
+	m_startSpin->setDecimals(2);
+	m_startSpin->setSuffix(" s");
+	m_startSpin->setValue(cfg.startSec);
+	form->addRow("Start (in point):", m_startSpin);
 
-    m_durationSpin = new QDoubleSpinBox();
-    m_durationSpin->setRange(0.0, 3600.0);
-    m_durationSpin->setDecimals(2);
-    m_durationSpin->setSuffix(" s");
-    m_durationSpin->setValue(cfg.durationSec);
-    form->addRow("Duration (0 = to end):", m_durationSpin);
-    trimLayout->addLayout(form);
+	m_durationSpin = new QDoubleSpinBox();
+	m_durationSpin->setRange(0.0, 3600.0);
+	m_durationSpin->setDecimals(2);
+	m_durationSpin->setSuffix(" s");
+	m_durationSpin->setValue(cfg.durationSec);
+	form->addRow("Duration (0 = to end):", m_durationSpin);
+	trimLayout->addLayout(form);
 
-    root->addWidget(trimGroup);
+	root->addWidget(trimGroup);
 
-    auto *outGroup  = new QGroupBox("Extra Outputs");
-    auto *outLayout = new QVBoxLayout(outGroup);
+	auto *outGroup = new QGroupBox("Extra Outputs");
+	auto *outLayout = new QVBoxLayout(outGroup);
 
-    auto *outHint = new QLabel(
-        "This clip always plays through the main program mix. Check any "
-        "devices below to also play it directly out of them at the same "
-        "time — headphones, an external monitor, a second speaker, etc.");
-    outHint->setWordWrap(true);
-    outHint->setStyleSheet("color: #999; font-size: 11px;");
-    outLayout->addWidget(outHint);
+	auto *outHint = new QLabel("This clip always plays through the main program mix. Check any "
+				   "devices below to also play it directly out of them at the same "
+				   "time — headphones, an external monitor, a second speaker, etc.");
+	outHint->setWordWrap(true);
+	outHint->setStyleSheet("color: #999; font-size: 11px;");
+	outLayout->addWidget(outHint);
 
-    m_deviceList = new QListWidget();
-    m_deviceList->setMaximumHeight(140);
-    for (const auto &device : SoundboardAudioEngine::instance().listOutputDevices()) {
-        QString label = QString::fromStdString(device.name);
-        if (device.isDefault) label += " (default)";
-        auto *item = new QListWidgetItem(label, m_deviceList);
-        item->setData(Qt::UserRole, QString::fromStdString(device.name));
-        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-        bool checked = std::find(cfg.extraOutputDevices.begin(), cfg.extraOutputDevices.end(),
-                                  device.name) != cfg.extraOutputDevices.end();
-        item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-    }
-    outLayout->addWidget(m_deviceList);
+	m_deviceList = new QListWidget();
+	m_deviceList->setMaximumHeight(140);
+	for (const auto &device : SoundboardAudioEngine::instance().listOutputDevices()) {
+		QString label = QString::fromStdString(device.name);
+		if (device.isDefault)
+			label += " (default)";
+		auto *item = new QListWidgetItem(label, m_deviceList);
+		item->setData(Qt::UserRole, QString::fromStdString(device.name));
+		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+		bool checked = std::find(cfg.extraOutputDevices.begin(), cfg.extraOutputDevices.end(), device.name) !=
+			       cfg.extraOutputDevices.end();
+		item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+	}
+	outLayout->addWidget(m_deviceList);
 
-    root->addWidget(outGroup);
+	root->addWidget(outGroup);
 
-    auto *btnRow = new QHBoxLayout();
-    auto *testBtn = new QPushButton("Test");
-    connect(testBtn, &QPushButton::clicked, this, &SoundboardItemSettings::onTest);
-    btnRow->addWidget(testBtn);
-    btnRow->addStretch();
-    root->addLayout(btnRow);
+	auto *btnRow = new QHBoxLayout();
+	auto *testBtn = new QPushButton("Test");
+	connect(testBtn, &QPushButton::clicked, this, &SoundboardItemSettings::onTest);
+	btnRow->addWidget(testBtn);
+	btnRow->addStretch();
+	root->addLayout(btnRow);
 
-    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    connect(btns, &QDialogButtonBox::accepted, this, &SoundboardItemSettings::onAccept);
-    connect(btns, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    root->addWidget(btns);
+	auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	connect(btns, &QDialogButtonBox::accepted, this, &SoundboardItemSettings::onAccept);
+	connect(btns, &QDialogButtonBox::rejected, this, &QDialog::reject);
+	root->addWidget(btns);
 }
 
 void SoundboardItemSettings::applyPending()
 {
-    SoundboardClipConfig cfg;
-    cfg.startSec    = m_startSpin->value();
-    cfg.durationSec = m_durationSpin->value();
-    for (int i = 0; i < m_deviceList->count(); i++) {
-        auto *item = m_deviceList->item(i);
-        if (item->checkState() == Qt::Checked)
-            cfg.extraOutputDevices.push_back(item->data(Qt::UserRole).toString().toStdString());
-    }
-    SoundboardManager::instance().setClipConfig(m_sourceName.toStdString(), cfg);
+	SoundboardClipConfig cfg;
+	cfg.startSec = m_startSpin->value();
+	cfg.durationSec = m_durationSpin->value();
+	for (int i = 0; i < m_deviceList->count(); i++) {
+		auto *item = m_deviceList->item(i);
+		if (item->checkState() == Qt::Checked)
+			cfg.extraOutputDevices.push_back(item->data(Qt::UserRole).toString().toStdString());
+	}
+	SoundboardManager::instance().setClipConfig(m_sourceName.toStdString(), cfg);
 }
 
 void SoundboardItemSettings::onTest()
 {
-    applyPending();
-    SoundboardManager::instance().play(m_sourceName.toStdString());
+	applyPending();
+	SoundboardManager::instance().play(m_sourceName.toStdString());
 }
 
 void SoundboardItemSettings::onAccept()
 {
-    applyPending();
-    SoundboardManager::instance().saveSettings();
-    accept();
+	applyPending();
+	SoundboardManager::instance().saveSettings();
+	accept();
 }
