@@ -12,6 +12,9 @@
 #include <QPushButton>
 #include <QDialogButtonBox>
 #include <QMessageBox>
+#include <QNetworkInterface>
+#include <QAbstractSocket>
+#include <QStringList>
 
 // ── Constructor ───────────────────────────────────────────────────────────────
 
@@ -100,8 +103,24 @@ void SoundboardSettings::buildUI()
 	m_httpPortSpin->setValue(SoundboardManager::instance().httpPort());
 	httpForm->addRow("HTTP port:", m_httpPortSpin);
 
+	// Listens on every interface (see companion-server.cpp), so a Companion
+	// instance on a different machine on the same network needs this box's
+	// actual LAN address, not 127.0.0.1 - show it so nobody has to go dig
+	// for it in System Settings/ipconfig.
+	QStringList lanAddresses;
+	for (const QHostAddress &addr : QNetworkInterface::allAddresses()) {
+		if (addr.protocol() == QAbstractSocket::IPv4Protocol && !addr.isLoopback())
+			lanAddresses << addr.toString();
+	}
+	QString addressText = lanAddresses.isEmpty() ? "(no network address found)" : lanAddresses.join(", ");
+	auto *addressHint = new QLabel("From another machine, use: " + addressText);
+	addressHint->setWordWrap(true);
+	addressHint->setStyleSheet("color: #999; font-size: 11px;");
+	httpForm->addRow(addressHint);
+
 	auto *apiHint = new QLabel("GET /api/status   GET /api/clips\n"
-				   "POST /api/clip/:name/play   POST /api/stopall");
+				   "POST /api/clip/:name/play   POST /api/clip/:name/stop   POST /api/stopall\n"
+				   "No authentication - only run this on a network you trust.");
 	apiHint->setStyleSheet("color: #555; font-size: 11px; font-family: monospace;");
 	httpForm->addRow(apiHint);
 	root->addWidget(httpGroup);

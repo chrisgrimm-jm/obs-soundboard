@@ -21,12 +21,17 @@ bool CompanionServer::start(quint16 port)
 {
 	stop();
 	m_port = port;
-	if (!m_server->listen(QHostAddress::LocalHost, port)) {
+	// Binds every network interface, not just loopback, so a Companion
+	// instance on a different machine on the same network (a separate
+	// control PC, an iPad-facing box, etc.) can reach it - this API has no
+	// authentication, so only run it on a network you trust, same as
+	// obs-websocket without a password set.
+	if (!m_server->listen(QHostAddress::AnyIPv4, port)) {
 		blog(LOG_WARNING, "[soundboard] HTTP server failed to bind port %d: %s", port,
 		     m_server->errorString().toUtf8().constData());
 		return false;
 	}
-	blog(LOG_INFO, "[soundboard] HTTP server listening on 127.0.0.1:%d", port);
+	blog(LOG_INFO, "[soundboard] HTTP server listening on 0.0.0.0:%d", port);
 	return true;
 }
 

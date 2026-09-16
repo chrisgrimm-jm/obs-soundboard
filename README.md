@@ -62,13 +62,25 @@ Right-click any pad to open its settings:
 Every clip in your Soundboard scene automatically gets a hotkey registered under **OBS Settings → Hotkeys** — look for entries starting with `Soundboard: Play`.
 
 ### Bitfocus Companion Integration
-The plugin runs a local HTTP server (default port `4489`) for integration with [Bitfocus Companion](https://bitfocus.io/companion).
+The plugin runs an HTTP server (default port `4489`, listening on every network interface, not
+just localhost) for integration with [Bitfocus Companion](https://bitfocus.io/companion) — Companion
+can run on a different machine on the same network (e.g. a dedicated control PC or Stream Deck box)
+than the one running OBS; just point its config at the OBS machine's LAN IP address instead of
+`127.0.0.1`. This API has no authentication, so only run it on a network you trust, same as
+`obs-websocket` without a password set.
+
+For the full Companion experience — a live dropdown of clip names, a feedback that colors a button
+while its clip plays, and time-remaining variables — use the real Companion module at
+[obs-soundboard-companion](https://github.com/chrisgrimm-jm/obs-soundboard-companion) rather than
+hitting this API with Companion's generic HTTP action. Raw endpoints, if you want them directly:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/status` | Returns the scene name and every clip's playing state |
+| `GET` | `/api/status` | Returns the scene name and every clip's playing state + time remaining |
 | `GET` | `/api/clips` | Same as `/api/status` |
+| `GET` | `/api/clip/:name` | Just that one clip |
 | `POST` | `/api/clip/:name/play` | Plays the clip |
+| `POST` | `/api/clip/:name/stop` | Stops the clip |
 | `POST` | `/api/stopall` | Stops every clip |
 
 Source names in the URL must be URL-encoded. The port can be changed in Settings.
