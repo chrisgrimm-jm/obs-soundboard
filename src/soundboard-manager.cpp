@@ -181,10 +181,10 @@ bool SoundboardManager::isPlaying(const std::string &sourceName) const
 	return obs_source_media_get_state(src) == OBS_MEDIA_STATE_PLAYING;
 }
 
-double SoundboardManager::remainingFraction(const std::string &sourceName) const
+bool SoundboardManager::playbackTimes(const std::string &sourceName, double &elapsedSec, double &totalSec) const
 {
 	if (!isPlaying(sourceName))
-		return -1.0;
+		return false;
 
 	auto cfgIt = m_clipConfig.find(sourceName);
 	double durationSec = (cfgIt != m_clipConfig.end()) ? cfgIt->second.durationSec : 0.0;
@@ -194,23 +194,41 @@ double SoundboardManager::remainingFraction(const std::string &sourceName) const
 	if (durationSec > 0.0) {
 		auto startIt = m_playStart.find(sourceName);
 		if (startIt == m_playStart.end())
-			return -1.0;
-		double elapsed =
-			std::chrono::duration<double>(std::chrono::steady_clock::now() - startIt->second).count();
-		return std::clamp(1.0 - elapsed / durationSec, 0.0, 1.0);
+			return false;
+		elapsedSec = std::chrono::duration<double>(std::chrono::steady_clock::now() - startIt->second).count();
+		totalSec = durationSec;
+		return true;
 	}
 
 	obs_sceneitem_t *item = findItem(sourceName);
 	obs_source_t *src = item ? obs_sceneitem_get_source(item) : nullptr;
 	if (!src)
-		return -1.0;
+		return false;
 
 	int64_t totalMs = obs_source_media_get_duration(src);
 	int64_t curMs = obs_source_media_get_time(src);
 	if (totalMs <= 0)
-		return -1.0;
+		return false;
 
-	return std::clamp(1.0 - double(curMs) / double(totalMs), 0.0, 1.0);
+	elapsedSec = double(curMs) / 1000.0;
+	totalSec = double(totalMs) / 1000.0;
+	return true;
+}
+
+double SoundboardManager::remainingFraction(const std::string &sourceName) const
+{
+	double elapsedSec, totalSec;
+	if (!playbackTimes(sourceName, elapsedSec, totalSec) || totalSec <= 0.0)
+		return -1.0;
+	return std::clamp(1.0 - elapsedSec / totalSec, 0.0, 1.0);
+}
+
+double SoundboardManager::remainingSeconds(const std::string &sourceName) const
+{
+	double elapsedSec, totalSec;
+	if (!playbackTimes(sourceName, elapsedSec, totalSec))
+		return -1.0;
+	return std::clamp(totalSec - elapsedSec, 0.0, totalSec);
 }
 
 // ── Per-clip config ────────────────────────────────────────────────────────────

@@ -79,9 +79,11 @@ CompanionServer::RequestLine CompanionServer::parseRequestLine(const QByteArray 
 }
 
 /*
- *  GET  /api/status                -> scene + every clip's playing state
- *  GET  /api/clips                 -> just the clip list
- *  POST /api/clip/:name/play       (name is URL-encoded)
+ *  GET  /api/status                -> scene + every clip's playing state + time remaining
+ *  GET  /api/clips                 -> same payload as /api/status
+ *  GET  /api/clip/:name            -> just that clip       (name is URL-encoded)
+ *  POST /api/clip/:name/play
+ *  POST /api/clip/:name/stop
  *  POST /api/stopall
  */
 void CompanionServer::handleRequest(QTcpSocket *sock, const QString &method, const QString &path)
@@ -118,11 +120,17 @@ void CompanionServer::handleRequest(QTcpSocket *sock, const QString &method, con
 
 		if (method == "POST" && action == "play") {
 			mgr.play(name);
-			sendJson(sock, 200, buildClipJson(name, true));
+			sendJson(sock, 200, buildClipJson(name, true, mgr.remainingSeconds(name)));
+			return;
+		}
+		if (method == "POST" && action == "stop") {
+			mgr.stopOne(name);
+			sendJson(sock, 200, buildClipJson(name, false, -1.0));
 			return;
 		}
 		if (method == "GET" && action.isEmpty()) {
-			sendJson(sock, 200, buildClipJson(name, mgr.isPlaying(name)));
+			bool playing = mgr.isPlaying(name);
+			sendJson(sock, 200, buildClipJson(name, playing, playing ? mgr.remainingSeconds(name) : -1.0));
 			return;
 		}
 	}
@@ -154,12 +162,15 @@ QByteArray CompanionServer::escapeJson(const std::string &s)
 	return QByteArray::fromStdString(s).replace('\\', "\\\\").replace('"', "\\\"");
 }
 
-QByteArray CompanionServer::buildClipJson(const std::string &name, bool playing)
+// remainingSec < 0 means "not playing" and is reported as JSON null rather
+// than a bogus negative number.
+QByteArray CompanionServer::buildClipJson(const std::string &name, bool playing, double remainingSec)
 {
+	QByteArray remaining = remainingSec >= 0.0 ? QByteArray::number(remainingSec, 'f', 1) : QByteArray("null");
 	return "{\"name\":\"" + escapeJson(name) +
 	       "\","
 	       "\"playing\":" +
-	       (playing ? "true" : "false") + "}";
+	       (playing ? "true" : "false") + ",\"remainingSec\":" + remaining + "}";
 }
 
 QByteArray CompanionServer::buildStatusJson() const
@@ -171,7 +182,8 @@ QByteArray CompanionServer::buildStatusJson() const
 		if (!first)
 			out += ",";
 		first = false;
-		out += buildClipJson(clip.sourceName, mgr.isPlaying(clip.sourceName));
+		bool playing = mgr.isPlaying(clip.sourceName);
+		out += buildClipJson(clip.sourceName, playing, playing ? mgr.remainingSeconds(clip.sourceName) : -1.0);
 	}
 	out += "]}";
 	return out;

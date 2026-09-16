@@ -37,7 +37,7 @@ private:
 	void sendError(QTcpSocket *sock, int status, const QString &msg);
 
 	QByteArray buildStatusJson() const;
-	static QByteArray buildClipJson(const std::string &name, bool playing);
+	static QByteArray buildClipJson(const std::string &name, bool playing, double remainingSec);
 	static QByteArray escapeJson(const std::string &s);
 
 	QTcpServer *m_server = nullptr;

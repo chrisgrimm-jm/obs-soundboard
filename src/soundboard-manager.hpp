@@ -51,6 +51,9 @@ public:
 	// Uses the trim duration's own countdown when one is set (that's what
 	// actually stops the clip), otherwise the media source's real position.
 	double remainingFraction(const std::string &sourceName) const;
+	// Same underlying countdown as remainingFraction, in seconds. -1.0 if
+	// not playing / unknown.
+	double remainingSeconds(const std::string &sourceName) const;
 
 	// ── Per-clip config (trim + extra outputs) ───────────────────────────────
 	SoundboardClipConfig clipConfig(const std::string &sourceName) const;
@@ -79,6 +82,9 @@ private:
 	void connectSceneSignals(obs_source_t *sceneSource);
 	void disconnectSceneSignals(obs_source_t *sceneSource);
 	std::string filePathFor(const std::string &sourceName) const;
+	// Elapsed/total seconds for the clip's current play-through. false if
+	// not playing / unknown (elapsedSec/totalSec left untouched).
+	bool playbackTimes(const std::string &sourceName, double &elapsedSec, double &totalSec) const;
 
 	static void cbItemAdd(void *data, calldata_t *cd);
 	static void cbItemRemove(void *data, calldata_t *cd);
