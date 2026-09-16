@@ -62,6 +62,7 @@ void obs_module_unload()
 	if (mainWin)
 		SoundboardManager::instance().setDockState(mainWin->saveState().toBase64().toStdString());
 	SoundboardManager::instance().saveSettings();
+	SoundboardManager::instance().Shutdown();
 }
 
 const char *obs_module_description()

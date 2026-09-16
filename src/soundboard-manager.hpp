@@ -69,9 +69,20 @@ public:
 	using RefreshCallback = std::function<void()>;
 	void setRefreshCallback(RefreshCallback cb) { m_refreshCb = std::move(cb); }
 
+	// Must be called from obs_module_unload(), not left to the destructor:
+	// this instance is a function-local static, so its destructor only runs
+	// during the C++ runtime's static-teardown at process exit - on macOS
+	// that happens after libobs has already torn itself down, and the
+	// libobs calls this used to make here (unregister hotkeys, disconnect
+	// signals) segfaulted (SoundboardManager::~SoundboardManager crash,
+	// confirmed via a real crash report). obs_module_unload() runs while
+	// libobs is still fully valid, so do the libobs-touching cleanup here
+	// instead and leave the destructor trivial.
+	void Shutdown();
+
 private:
 	SoundboardManager();
-	~SoundboardManager();
+	~SoundboardManager() = default;
 
 	// Returns the soundboard scene (does NOT addref — caller must not release)
 	obs_scene_t *boardScene() const;
@@ -94,6 +105,8 @@ private:
 		obs_hotkey_id id;
 		std::string sourceName;
 	};
+
+	bool m_shutdown = false;
 
 	std::string m_sceneName = "Soundboard";
 	int m_httpPort = 4489;

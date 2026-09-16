@@ -22,8 +22,12 @@ SoundboardManager &SoundboardManager::instance()
 
 SoundboardManager::SoundboardManager() {}
 
-SoundboardManager::~SoundboardManager()
+void SoundboardManager::Shutdown()
 {
+	if (m_shutdown)
+		return;
+	m_shutdown = true;
+
 	unregisterAllHotkeys();
 
 	obs_source_t *src = obs_get_source_by_name(m_sceneName.c_str());
