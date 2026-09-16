@@ -6,6 +6,11 @@
 
 $ErrorActionPreference = "Stop"
 
+# Older Windows PowerShell defaults to TLS 1.0/1.1, which GitHub rejects -
+# .NET then reports that as a DNS "remote name could not be resolved"
+# error instead of a TLS failure, which is misleading. Force TLS 1.2.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $pluginDir = "C:\Program Files\obs-studio\obs-plugins\64bit"
 $dataDir = "$pluginDir\data\obs-plugins\obs-soundboard"
 $tmp = Join-Path $env:TEMP "obs-soundboard-install"
