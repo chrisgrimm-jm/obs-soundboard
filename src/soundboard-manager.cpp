@@ -308,6 +308,68 @@ void SoundboardManager::addToAllScenes()
 	blog(LOG_INFO, "[soundboard] Added '%s' to all scenes", m_sceneName.c_str());
 }
 
+std::string SoundboardManager::addClipFromFile(const std::string &filePath)
+{
+	if (filePath.empty())
+		return {};
+
+	obs_source_t *boardSrc = obs_get_source_by_name(m_sceneName.c_str());
+	obs_scene_t *scene = nullptr;
+	if (boardSrc) {
+		scene = obs_scene_from_source(boardSrc);
+	} else {
+		scene = obs_scene_create(m_sceneName.c_str());
+		if (scene)
+			boardSrc = obs_source_get_ref(obs_scene_get_source(scene));
+	}
+	if (!scene || !boardSrc) {
+		if (boardSrc)
+			obs_source_release(boardSrc);
+		return {};
+	}
+
+	// Base name (no directory, no extension) as the starting clip name,
+	// de-duplicated against existing source names.
+	size_t slash = filePath.find_last_of("/\\");
+	std::string base = (slash == std::string::npos) ? filePath : filePath.substr(slash + 1);
+	size_t dot = base.find_last_of('.');
+	if (dot != std::string::npos && dot > 0)
+		base = base.substr(0, dot);
+	if (base.empty())
+		base = "Sound";
+
+	std::string name = base;
+	for (int n = 2; true; n++) {
+		obs_source_t *existing = obs_get_source_by_name(name.c_str());
+		if (!existing)
+			break;
+		obs_source_release(existing);
+		name = base + " (" + std::to_string(n) + ")";
+	}
+
+	// is_local_file already defaults to true in libobs's own ffmpeg_source,
+	// but setting it explicitly here means this clip is ready to play the
+	// instant it's created - no trip through OBS's own Properties dialog to
+	// manually check "Local File" and browse for the path.
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_string(settings, "local_file", filePath.c_str());
+	obs_data_set_bool(settings, "is_local_file", true);
+
+	obs_source_t *clipSrc = obs_source_create("ffmpeg_source", name.c_str(), settings, nullptr);
+	obs_data_release(settings);
+	if (!clipSrc) {
+		obs_source_release(boardSrc);
+		return {};
+	}
+
+	obs_scene_add(scene, clipSrc);
+	obs_source_release(clipSrc);
+	obs_source_release(boardSrc);
+
+	blog(LOG_INFO, "[soundboard] Added clip '%s' from %s", name.c_str(), filePath.c_str());
+	return name;
+}
+
 // ── Hotkeys ───────────────────────────────────────────────────────────────────
 
 void SoundboardManager::registerHotkeys()
@@ -423,6 +485,10 @@ void SoundboardManager::loadSettings()
 		if (m_httpPort <= 0 || m_httpPort > 65535)
 			m_httpPort = 4489;
 
+		if (obs_data_has_user_value(root, "columns"))
+			setColumns((int)obs_data_get_int(root, "columns"));
+		m_listMode = obs_data_get_bool(root, "list_mode");
+
 		const char *ds = obs_data_get_string(root, "dock_state");
 		if (ds)
 			m_dockState = ds;
@@ -480,6 +546,8 @@ void SoundboardManager::saveSettings()
 	obs_data_set_string(root, "board_scene", m_sceneName.c_str());
 	obs_data_set_int(root, "http_port", m_httpPort);
 	obs_data_set_string(root, "dock_state", m_dockState.c_str());
+	obs_data_set_int(root, "columns", m_columns);
+	obs_data_set_bool(root, "list_mode", m_listMode);
 
 	obs_data_array_t *clips = obs_data_array_create();
 	for (const auto &[name, cfg] : m_clipConfig) {

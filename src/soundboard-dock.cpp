@@ -10,6 +10,9 @@
 #include <QMetaObject>
 #include <QSizePolicy>
 #include <QFrame>
+#include <QFileDialog>
+#include <QStandardPaths>
+#include <QMessageBox>
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +29,21 @@ static const char *kIdle = "QPushButton {"
 			   "  font-weight: bold; font-size: 12px; padding: 14px 8px;"
 			   "}"
 			   "QPushButton:hover { background: #3a3a3a; border-color: #666; }";
+
+// List mode: compact, left-aligned, single-line rows instead of big tiles.
+static const char *kPlayingCompact = "QPushButton {"
+				     "  background: #27ae60; color: #fff; text-align: left;"
+				     "  border: 1px solid #1e8449; border-radius: 4px;"
+				     "  font-weight: bold; font-size: 12px; padding: 4px 10px;"
+				     "}"
+				     "QPushButton:hover { background: #2ecc71; }";
+
+static const char *kIdleCompact = "QPushButton {"
+				  "  background: #2c2c2c; color: #ddd; text-align: left;"
+				  "  border: 1px solid #444; border-radius: 4px;"
+				  "  font-weight: bold; font-size: 12px; padding: 4px 10px;"
+				  "}"
+				  "QPushButton:hover { background: #3a3a3a; border-color: #666; }";
 
 static const char *kStopAllBtn = "QPushButton {"
 				 "  background: #a93226; color: #fff; border: none;"
@@ -81,6 +99,12 @@ void SoundboardDock::buildUI()
 	topBar->addWidget(m_sceneLabel);
 	topBar->addStretch();
 
+	auto *addSoundBtn = new QPushButton("+ Add Sound");
+	addSoundBtn->setStyleSheet(kSettingsBtn);
+	addSoundBtn->setFixedHeight(22);
+	connect(addSoundBtn, &QPushButton::clicked, this, &SoundboardDock::onAddSoundClicked);
+	topBar->addWidget(addSoundBtn);
+
 	auto *stopAllBtn = new QPushButton("STOP ALL");
 	stopAllBtn->setStyleSheet(kStopAllBtn);
 	stopAllBtn->setFixedHeight(22);
@@ -108,9 +132,12 @@ void SoundboardDock::buildUI()
 	refresh();
 }
 
-void SoundboardDock::stylePad(QPushButton *btn, bool playing)
+void SoundboardDock::stylePad(QPushButton *btn, bool playing, bool compact)
 {
-	btn->setStyleSheet(playing ? kPlaying : kIdle);
+	if (compact)
+		btn->setStyleSheet(playing ? kPlayingCompact : kIdleCompact);
+	else
+		btn->setStyleSheet(playing ? kPlaying : kIdle);
 }
 
 // ── Slots ─────────────────────────────────────────────────────────────────────
@@ -127,9 +154,10 @@ void SoundboardDock::refresh()
 
 	m_pads.clear();
 	m_bars.clear();
+	m_compact = mgr.listMode();
 
 	auto clips = mgr.currentClips();
-	const int columns = 3;
+	const int columns = m_compact ? 1 : mgr.columns();
 	int row = 0, col = 0;
 	for (const auto &clip : clips) {
 		QString sname = QString::fromStdString(clip.sourceName);
@@ -141,9 +169,9 @@ void SoundboardDock::refresh()
 
 		auto *pad = new QPushButton(sname);
 		pad->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-		pad->setMinimumHeight(56);
+		pad->setMinimumHeight(m_compact ? 28 : 56);
 		pad->setToolTip("Click to play/stop — right-click for trim & monitoring settings");
-		stylePad(pad, false);
+		stylePad(pad, false, m_compact);
 		connect(pad, &QPushButton::clicked, this, [this, sname]() { onPadClicked(sname); });
 		pad->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(pad, &QPushButton::customContextMenuRequested, this,
@@ -170,8 +198,8 @@ void SoundboardDock::refresh()
 	}
 
 	if (clips.empty()) {
-		auto *hint = new QLabel("Open Settings to choose your\nSoundboard scene, then add\n"
-					"sound clips to it in OBS\n(Add Source → Media Source).");
+		auto *hint = new QLabel("Click + Add Sound above to add your\nfirst clip, or open Settings to\n"
+					"choose a different Soundboard scene.");
 		hint->setAlignment(Qt::AlignCenter);
 		hint->setStyleSheet("color: #555; font-size: 11px;");
 		grid->addWidget(hint, 0, 0);
@@ -186,7 +214,7 @@ void SoundboardDock::pollPlayingState()
 	for (auto it = m_pads.constBegin(); it != m_pads.constEnd(); ++it) {
 		std::string name = it.key().toStdString();
 		bool playing = mgr.isPlaying(name);
-		stylePad(it.value(), playing);
+		stylePad(it.value(), playing, m_compact);
 
 		auto *bar = m_bars.value(it.key());
 		if (!bar)
@@ -224,4 +252,25 @@ void SoundboardDock::onSettingsClicked()
 		SoundboardManager::instance().saveSettings();
 		refresh();
 	}
+}
+
+void SoundboardDock::onAddSoundClicked()
+{
+	QString startDir = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+	QString path = QFileDialog::getOpenFileName(this, "Add Sound", startDir,
+						    "Audio/Video files (*.mp3 *.wav *.aac *.ogg *.flac *.m4a *.mp4 "
+						    "*.mov *.mkv);;All files (*)");
+	if (path.isEmpty())
+		return;
+
+	std::string name = SoundboardManager::instance().addClipFromFile(path.toStdString());
+	if (name.empty()) {
+		QMessageBox::warning(this, "Add Sound", "Couldn't add that file as a clip.");
+		return;
+	}
+
+	// The scene's item_add signal (SoundboardManager::cbItemAdd) already
+	// queues a refresh, but do it directly too rather than rely on that
+	// racing a signal callback - refresh() is idempotent either way.
+	refresh();
 }

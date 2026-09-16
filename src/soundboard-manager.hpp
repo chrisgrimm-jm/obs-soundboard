@@ -35,6 +35,14 @@ public:
 	const std::string &dockState() const { return m_dockState; }
 	void setDockState(const std::string &state) { m_dockState = state; }
 
+	// ── Layout ─────────────────────────────────────────────────────────────────
+	// Grid mode: pads laid out in this many columns. Ignored in list mode.
+	int columns() const { return m_columns; }
+	void setColumns(int c) { m_columns = c < 1 ? 1 : (c > 8 ? 8 : c); }
+	// List mode: one compact row per clip instead of a grid of large pads.
+	bool listMode() const { return m_listMode; }
+	void setListMode(bool on) { m_listMode = on; }
+
 	// ── Clip enumeration ─────────────────────────────────────────────────────
 	struct ClipInfo {
 		std::string sourceName;
@@ -63,6 +71,13 @@ public:
 	// Creates the soundboard scene if missing, nests it at the top of every
 	// other scene in the collection.
 	void addToAllScenes();
+
+	// Creates a new Media Source pointing at filePath (local_file already set,
+	// so it's ready to play immediately - no manual "check Local File, browse"
+	// step in OBS's own Properties dialog) and adds it to the Soundboard scene.
+	// Returns the new clip's source name (de-duplicated from the file's base
+	// name if that name is already taken), or empty on failure.
+	std::string addClipFromFile(const std::string &filePath);
 
 	// ── UI callback ──────────────────────────────────────────────────────────
 	// Fires (queued to Qt main thread by callers) when the clip list changes.
@@ -110,6 +125,8 @@ private:
 
 	std::string m_sceneName = "Soundboard";
 	int m_httpPort = 4489;
+	int m_columns = 3;
+	bool m_listMode = false;
 
 	std::string m_dockState;
 

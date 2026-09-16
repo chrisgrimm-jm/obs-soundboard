@@ -33,9 +33,11 @@ void SoundboardSettings::buildUI()
 	auto *sceneGroup = new QGroupBox("Soundboard Scene");
 	auto *sceneLayout = new QVBoxLayout(sceneGroup);
 
-	auto *sceneHint = new QLabel("Choose the OBS scene that holds your sound clips. Add each clip in "
-				     "OBS normally (Add Source → Media Source) — the dock will show "
-				     "every source in that scene as a pad, automatically.");
+	auto *sceneHint = new QLabel("Choose the OBS scene that holds your sound clips. Use the dock's "
+				     "+ Add Sound button to add a clip (it's ready to play immediately, "
+				     "no extra setup), or add one in OBS normally "
+				     "(Add Source → Media Source) — either way, the dock shows every "
+				     "source in that scene as a pad, automatically.");
 	sceneHint->setWordWrap(true);
 	sceneHint->setStyleSheet("color: #999; font-size: 11px;");
 	sceneLayout->addWidget(sceneHint);
@@ -70,6 +72,24 @@ void SoundboardSettings::buildUI()
 	btnRow->addWidget(addBtn);
 	setupLayout->addLayout(btnRow);
 	root->addWidget(setupGroup);
+
+	// ── Layout ────────────────────────────────────────────────────────────────
+	auto *layoutGroup = new QGroupBox("Layout");
+	auto *layoutForm = new QFormLayout(layoutGroup);
+
+	m_listModeCheck = new QCheckBox("List mode (compact rows instead of large tiles)");
+	m_listModeCheck->setChecked(SoundboardManager::instance().listMode());
+	layoutForm->addRow(m_listModeCheck);
+
+	m_columnsSpin = new QSpinBox();
+	m_columnsSpin->setRange(1, 8);
+	m_columnsSpin->setValue(SoundboardManager::instance().columns());
+	m_columnsSpin->setEnabled(!m_listModeCheck->isChecked());
+	layoutForm->addRow("Grid columns:", m_columnsSpin);
+
+	connect(m_listModeCheck, &QCheckBox::toggled, m_columnsSpin, &QSpinBox::setDisabled);
+
+	root->addWidget(layoutGroup);
 
 	// ── Companion HTTP ────────────────────────────────────────────────────────
 	auto *httpGroup = new QGroupBox("Bitfocus Companion / HTTP API");
@@ -133,6 +153,8 @@ void SoundboardSettings::onAccept()
 {
 	auto &mgr = SoundboardManager::instance();
 	mgr.setSceneName(m_sceneCombo->currentText().toStdString());
+	mgr.setListMode(m_listModeCheck->isChecked());
+	mgr.setColumns(m_columnsSpin->value());
 
 	int newPort = m_httpPortSpin->value();
 	if (newPort != mgr.httpPort()) {

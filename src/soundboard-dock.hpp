@@ -24,11 +24,12 @@ private slots:
 	void onPadSettingsClicked(const QString &sourceName);
 	void onStopAllClicked();
 	void onSettingsClicked();
+	void onAddSoundClicked();
 
 private:
 	void buildUI();
 
-	static void stylePad(QPushButton *btn, bool playing);
+	static void stylePad(QPushButton *btn, bool playing, bool compact);
 
 	QLabel *m_sceneLabel = nullptr;
 	QScrollArea *m_scroll = nullptr;
@@ -36,4 +37,5 @@ private:
 	QTimer *m_pollTimer = nullptr;
 	QHash<QString, QPushButton *> m_pads;
 	QHash<QString, QProgressBar *> m_bars;
+	bool m_compact = false; // mirrors SoundboardManager::listMode() as of the last refresh()
 };

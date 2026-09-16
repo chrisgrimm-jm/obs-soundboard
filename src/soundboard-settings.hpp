@@ -3,6 +3,7 @@
 #include <QDialog>
 #include <QComboBox>
 #include <QSpinBox>
+#include <QCheckBox>
 
 class SoundboardSettings : public QDialog {
 	Q_OBJECT
@@ -20,4 +21,6 @@ private:
 
 	QComboBox *m_sceneCombo = nullptr;
 	QSpinBox *m_httpPortSpin = nullptr;
+	QCheckBox *m_listModeCheck = nullptr;
+	QSpinBox *m_columnsSpin = nullptr;
 };
