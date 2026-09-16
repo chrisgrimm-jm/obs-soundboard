@@ -6,6 +6,7 @@
 #include <vector>
 #include <functional>
 #include <cstdint>
+#include <chrono>
 
 // Per-clip trim + extra-output config.
 struct SoundboardClipConfig {
@@ -46,6 +47,10 @@ public:
 	void stopOne(const std::string &sourceName);
 	void stopAll();
 	bool isPlaying(const std::string &sourceName) const;
+	// 1.0 = just started, 0.0 = about to stop, -1.0 = not playing / unknown.
+	// Uses the trim duration's own countdown when one is set (that's what
+	// actually stops the clip), otherwise the media source's real position.
+	double remainingFraction(const std::string &sourceName) const;
 
 	// ── Per-clip config (trim + extra outputs) ───────────────────────────────
 	SoundboardClipConfig clipConfig(const std::string &sourceName) const;
@@ -95,6 +100,7 @@ private:
 	// Bumped on every play() so a stale duration-timeout from a prior
 	// trigger can't stop a clip that's since been retriggered.
 	std::unordered_map<std::string, uint64_t> m_playGen;
+	std::unordered_map<std::string, std::chrono::steady_clock::time_point> m_playStart;
 
 	RefreshCallback m_refreshCb;
 };

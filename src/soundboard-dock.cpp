@@ -40,6 +40,13 @@ static const char *kSettingsBtn = "QPushButton {"
 				  "}"
 				  "QPushButton:hover { color: #bbb; border-color: #555; }";
 
+// Countdown strip under each pad: full width at the start of a clip,
+// shrinking to nothing as it plays out.
+static const char *kCountdownBar = "QProgressBar {"
+				   "  background: #1a1a1a; border: none; border-radius: 2px;"
+				   "}"
+				   "QProgressBar::chunk { background: #f39c12; border-radius: 2px; }";
+
 // ── Constructor ───────────────────────────────────────────────────────────────
 
 SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
@@ -119,12 +126,18 @@ void SoundboardDock::refresh()
 	grid->setSpacing(6);
 
 	m_pads.clear();
+	m_bars.clear();
 
 	auto clips = mgr.currentClips();
 	const int columns = 3;
 	int row = 0, col = 0;
 	for (const auto &clip : clips) {
 		QString sname = QString::fromStdString(clip.sourceName);
+
+		auto *cell = new QWidget();
+		auto *cellLayout = new QVBoxLayout(cell);
+		cellLayout->setContentsMargins(0, 0, 0, 0);
+		cellLayout->setSpacing(2);
 
 		auto *pad = new QPushButton(sname);
 		pad->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -135,9 +148,20 @@ void SoundboardDock::refresh()
 		pad->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(pad, &QPushButton::customContextMenuRequested, this,
 			[this, sname]() { onPadSettingsClicked(sname); });
+		cellLayout->addWidget(pad);
 
-		grid->addWidget(pad, row, col);
+		// Countdown strip - full when a clip starts, empty when it ends.
+		auto *bar = new QProgressBar();
+		bar->setStyleSheet(kCountdownBar);
+		bar->setRange(0, 1000);
+		bar->setValue(0);
+		bar->setTextVisible(false);
+		bar->setFixedHeight(4);
+		cellLayout->addWidget(bar);
+
+		grid->addWidget(cell, row, col);
 		m_pads[sname] = pad;
+		m_bars[sname] = bar;
 
 		if (++col >= columns) {
 			col = 0;
@@ -159,8 +183,17 @@ void SoundboardDock::refresh()
 void SoundboardDock::pollPlayingState()
 {
 	auto &mgr = SoundboardManager::instance();
-	for (auto it = m_pads.constBegin(); it != m_pads.constEnd(); ++it)
-		stylePad(it.value(), mgr.isPlaying(it.key().toStdString()));
+	for (auto it = m_pads.constBegin(); it != m_pads.constEnd(); ++it) {
+		std::string name = it.key().toStdString();
+		bool playing = mgr.isPlaying(name);
+		stylePad(it.value(), playing);
+
+		auto *bar = m_bars.value(it.key());
+		if (!bar)
+			continue;
+		double remaining = playing ? mgr.remainingFraction(name) : -1.0;
+		bar->setValue(remaining >= 0.0 ? static_cast<int>(remaining * 1000) : 0);
+	}
 }
 
 void SoundboardDock::onPadClicked(const QString &sourceName)

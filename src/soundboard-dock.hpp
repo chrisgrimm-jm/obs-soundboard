@@ -5,6 +5,7 @@
 #include <QScrollArea>
 #include <QLabel>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QTimer>
 #include <QString>
 #include <QHash>
@@ -34,4 +35,5 @@ private:
 	QWidget *m_padContainer = nullptr;
 	QTimer *m_pollTimer = nullptr;
 	QHash<QString, QPushButton *> m_pads;
+	QHash<QString, QProgressBar *> m_bars;
 };

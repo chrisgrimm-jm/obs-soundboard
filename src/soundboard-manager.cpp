@@ -9,6 +9,7 @@
 #include <QMetaObject>
 #include <QTimer>
 
+#include <algorithm>
 #include <cstring>
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
@@ -117,6 +118,7 @@ void SoundboardManager::play(const std::string &sourceName)
 		return;
 
 	obs_source_media_restart(src);
+	m_playStart[sourceName] = std::chrono::steady_clock::now();
 
 	auto it = m_clipConfig.find(sourceName);
 	if (it == m_clipConfig.end())
@@ -177,6 +179,38 @@ bool SoundboardManager::isPlaying(const std::string &sourceName) const
 	if (!src)
 		return false;
 	return obs_source_media_get_state(src) == OBS_MEDIA_STATE_PLAYING;
+}
+
+double SoundboardManager::remainingFraction(const std::string &sourceName) const
+{
+	if (!isPlaying(sourceName))
+		return -1.0;
+
+	auto cfgIt = m_clipConfig.find(sourceName);
+	double durationSec = (cfgIt != m_clipConfig.end()) ? cfgIt->second.durationSec : 0.0;
+
+	// A trim duration is enforced by play()'s own QTimer, not by the media
+	// source itself, so that's the countdown that actually matters here.
+	if (durationSec > 0.0) {
+		auto startIt = m_playStart.find(sourceName);
+		if (startIt == m_playStart.end())
+			return -1.0;
+		double elapsed =
+			std::chrono::duration<double>(std::chrono::steady_clock::now() - startIt->second).count();
+		return std::clamp(1.0 - elapsed / durationSec, 0.0, 1.0);
+	}
+
+	obs_sceneitem_t *item = findItem(sourceName);
+	obs_source_t *src = item ? obs_sceneitem_get_source(item) : nullptr;
+	if (!src)
+		return -1.0;
+
+	int64_t totalMs = obs_source_media_get_duration(src);
+	int64_t curMs = obs_source_media_get_time(src);
+	if (totalMs <= 0)
+		return -1.0;
+
+	return std::clamp(1.0 - double(curMs) / double(totalMs), 0.0, 1.0);
 }
 
 // ── Per-clip config ────────────────────────────────────────────────────────────
