@@ -56,6 +56,10 @@ void SoundboardItemSettings::buildUI()
 
 	root->addWidget(trimGroup);
 
+	m_loopCheck = new QCheckBox("Loop (repeat until stopped)");
+	m_loopCheck->setChecked(cfg.loop);
+	root->addWidget(m_loopCheck);
+
 	auto *outGroup = new QGroupBox("Extra Outputs");
 	auto *outLayout = new QVBoxLayout(outGroup);
 
@@ -101,6 +105,7 @@ void SoundboardItemSettings::applyPending()
 	SoundboardClipConfig cfg;
 	cfg.startSec = m_startSpin->value();
 	cfg.durationSec = m_durationSpin->value();
+	cfg.loop = m_loopCheck->isChecked();
 	for (int i = 0; i < m_deviceList->count(); i++) {
 		auto *item = m_deviceList->item(i);
 		if (item->checkState() == Qt::Checked)

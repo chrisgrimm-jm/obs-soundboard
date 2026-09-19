@@ -12,6 +12,7 @@
 struct SoundboardClipConfig {
 	double startSec = 0.0;    // in-point: seek here on every play()
 	double durationSec = 0.0; // out-point, as a length; 0 = play to natural end
+	bool loop = false;        // repeat from the top on natural end, until stopped
 	// Extra system playback devices (by name) this clip should also play out
 	// of directly, in addition to always going through the main OBS mix.
 	std::vector<std::string> extraOutputDevices;

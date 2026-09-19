@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QListWidget>
@@ -23,5 +24,6 @@ private:
 
 	QDoubleSpinBox *m_startSpin = nullptr;
 	QDoubleSpinBox *m_durationSpin = nullptr;
+	QCheckBox *m_loopCheck = nullptr;
 	QListWidget *m_deviceList = nullptr;
 };

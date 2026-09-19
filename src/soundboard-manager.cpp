@@ -121,13 +121,22 @@ void SoundboardManager::play(const std::string &sourceName)
 	if (!src)
 		return;
 
+	auto it = m_clipConfig.find(sourceName);
+	static const SoundboardClipConfig kDefaultCfg;
+	const SoundboardClipConfig &cfg = (it != m_clipConfig.end()) ? it->second : kDefaultCfg;
+
+	// ffmpeg_source's own "looping" setting - native repeat-on-end, so no
+	// per-loop bookkeeping is needed on our side.
+	obs_data_t *settings = obs_source_get_settings(src);
+	obs_data_set_bool(settings, "looping", cfg.loop);
+	obs_source_update(src, settings);
+	obs_data_release(settings);
+
 	obs_source_media_restart(src);
 	m_playStart[sourceName] = std::chrono::steady_clock::now();
 
-	auto it = m_clipConfig.find(sourceName);
 	if (it == m_clipConfig.end())
 		return;
-	const SoundboardClipConfig &cfg = it->second;
 
 	if (cfg.startSec > 0.0)
 		obs_source_media_set_time(src, static_cast<int64_t>(cfg.startSec * 1000));
@@ -503,6 +512,7 @@ void SoundboardManager::loadSettings()
 					SoundboardClipConfig cfg;
 					cfg.startSec = obs_data_get_double(entry, "start_sec");
 					cfg.durationSec = obs_data_get_double(entry, "duration_sec");
+					cfg.loop = obs_data_get_bool(entry, "loop");
 
 					obs_data_array_t *devices = obs_data_get_array(entry, "extra_output_devices");
 					if (devices) {
@@ -555,6 +565,7 @@ void SoundboardManager::saveSettings()
 		obs_data_set_string(entry, "source", name.c_str());
 		obs_data_set_double(entry, "start_sec", cfg.startSec);
 		obs_data_set_double(entry, "duration_sec", cfg.durationSec);
+		obs_data_set_bool(entry, "loop", cfg.loop);
 
 		obs_data_array_t *devices = obs_data_array_create();
 		for (const auto &deviceName : cfg.extraOutputDevices) {
