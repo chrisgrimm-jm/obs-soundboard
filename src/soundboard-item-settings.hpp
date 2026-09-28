@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QListWidget>
+#include <QRadioButton>
 #include <QString>
 
 class SoundboardItemSettings : public QDialog {
@@ -25,5 +27,9 @@ private:
 	QDoubleSpinBox *m_startSpin = nullptr;
 	QDoubleSpinBox *m_durationSpin = nullptr;
 	QCheckBox *m_loopCheck = nullptr;
+	QButtonGroup *m_clickActionGroup = nullptr;
+	QRadioButton *m_clickStopRadio = nullptr;
+	QRadioButton *m_clickFadeRadio = nullptr;
+	QRadioButton *m_clickRetriggerRadio = nullptr;
 	QListWidget *m_deviceList = nullptr;
 };

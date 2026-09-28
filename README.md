@@ -50,11 +50,16 @@ Every clip is independent, can be trimmed to a specific in/out point, can be rou
 ## Features
 
 ### Dock Controls
-Each clip in your Soundboard scene gets its own pad in the dock. Click to play, click again while it's playing to stop it early. Pads turn green while that clip is actively playing.
+Each clip in your Soundboard scene gets its own pad in the dock. Click to play; what a second click does while it's still playing is configurable per clip (see **Click Again** below — stop, by default). Pads turn green while that clip is actively playing, with a countdown strip underneath.
 
 ### Per-Clip Trim + Outputs
 Right-click any pad to open its settings:
 - **Start (in point)** / **Duration** — trims playback to a specific range of the file; duration `0` plays to the file's natural end.
+- **Loop** — repeats the clip from the top on its own once it reaches the end, until stopped.
+- **When Clicked Again** — what a second click on this pad does while it's already playing:
+  - **Stop** — cuts it immediately (the default).
+  - **Fade out** — ramps the volume down over half a second, then stops.
+  - **Retrigger** — restarts from the top instead of stopping, so mashing the pad just keeps replaying it (DJ-airhorn style).
 - **Extra Outputs** — in addition to always playing through the main program mix, a clip can also be played directly out of any number of your system's audio devices at once (headphones, an external monitor, a second speaker) — check as many as you want per clip. This plays independently of OBS's own single Monitoring Device setting, so different clips can go to different combinations of devices.
 - **Test** — plays the clip immediately with the pending settings applied.
 

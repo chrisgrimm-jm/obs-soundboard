@@ -8,11 +8,19 @@
 #include <cstdint>
 #include <chrono>
 
+// What clicking a pad does while its clip is already playing.
+enum class SoundboardClickAction {
+	Stop = 0,      // cut it immediately
+	FadeOut = 1,   // ramp volume down, then stop
+	Retrigger = 2, // restart from the top without stopping - mash-the-airhorn behavior
+};
+
 // Per-clip trim + extra-output config.
 struct SoundboardClipConfig {
 	double startSec = 0.0;    // in-point: seek here on every play()
 	double durationSec = 0.0; // out-point, as a length; 0 = play to natural end
 	bool loop = false;        // repeat from the top on natural end, until stopped
+	SoundboardClickAction clickAction = SoundboardClickAction::Stop;
 	// Extra system playback devices (by name) this clip should also play out
 	// of directly, in addition to always going through the main OBS mix.
 	std::vector<std::string> extraOutputDevices;
@@ -56,6 +64,9 @@ public:
 	void stopOne(const std::string &sourceName);
 	void stopAll();
 	bool isPlaying(const std::string &sourceName) const;
+	// What a dock pad click should do: play() if idle, otherwise dispatch to
+	// stop/fade/retrigger per that clip's configured SoundboardClickAction.
+	void triggerPad(const std::string &sourceName);
 	// 1.0 = just started, 0.0 = about to stop, -1.0 = not playing / unknown.
 	// Uses the trim duration's own countdown when one is set (that's what
 	// actually stops the clip), otherwise the media source's real position.
@@ -112,6 +123,7 @@ private:
 	// Elapsed/total seconds for the clip's current play-through. false if
 	// not playing / unknown (elapsedSec/totalSec left untouched).
 	bool playbackTimes(const std::string &sourceName, double &elapsedSec, double &totalSec) const;
+	void fadeOutAndStop(const std::string &sourceName, int fadeMs = 500);
 
 	static void cbItemAdd(void *data, calldata_t *cd);
 	static void cbItemRemove(void *data, calldata_t *cd);
@@ -138,6 +150,10 @@ private:
 	// trigger can't stop a clip that's since been retriggered.
 	std::unordered_map<std::string, uint64_t> m_playGen;
 	std::unordered_map<std::string, std::chrono::steady_clock::time_point> m_playStart;
+	// True per-source volume baseline, captured once so a fade-out has
+	// something correct to ramp from/restore to even if triggered again
+	// mid-fade. See play()/fadeOutAndStop().
+	std::unordered_map<std::string, float> m_baseVolume;
 
 	RefreshCallback m_refreshCb;
 };

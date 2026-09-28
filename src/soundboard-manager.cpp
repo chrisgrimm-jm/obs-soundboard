@@ -121,6 +121,12 @@ void SoundboardManager::play(const std::string &sourceName)
 	if (!src)
 		return;
 
+	// A fresh play() always wins over anything in flight for this clip - a
+	// fade-out ticking down, or a pending duration cutoff from the previous
+	// trigger - so bump the generation unconditionally before either of
+	// those has a chance to check it again.
+	++m_playGen[sourceName];
+
 	auto it = m_clipConfig.find(sourceName);
 	static const SoundboardClipConfig kDefaultCfg;
 	const SoundboardClipConfig &cfg = (it != m_clipConfig.end()) ? it->second : kDefaultCfg;
@@ -131,6 +137,15 @@ void SoundboardManager::play(const std::string &sourceName)
 	obs_data_set_bool(settings, "looping", cfg.loop);
 	obs_source_update(src, settings);
 	obs_data_release(settings);
+
+	// Restore true baseline volume in case a fade-out left this source
+	// turned down - captured once per source so a fade started while
+	// already mid-fade can't re-snapshot an already-reduced value.
+	if (m_baseVolume.find(sourceName) == m_baseVolume.end()) {
+		float v = obs_source_get_volume(src);
+		m_baseVolume[sourceName] = (v > 0.0f) ? v : 1.0f;
+	}
+	obs_source_set_volume(src, m_baseVolume[sourceName]);
 
 	obs_source_media_restart(src);
 	m_playStart[sourceName] = std::chrono::steady_clock::now();
@@ -168,6 +183,11 @@ void SoundboardManager::play(const std::string &sourceName)
 
 void SoundboardManager::stopOne(const std::string &sourceName)
 {
+	// A stop (unlike a fade) always wins immediately - bump the generation so
+	// any fade-out ticking down for this clip aborts instead of stomping on
+	// whatever plays next.
+	++m_playGen[sourceName];
+
 	obs_sceneitem_t *item = findItem(sourceName);
 	if (item) {
 		obs_source_t *src = obs_sceneitem_get_source(item);
@@ -175,6 +195,86 @@ void SoundboardManager::stopOne(const std::string &sourceName)
 			obs_source_media_stop(src);
 	}
 	SoundboardAudioEngine::instance().stopAll(sourceName);
+}
+
+void SoundboardManager::triggerPad(const std::string &sourceName)
+{
+	if (!isPlaying(sourceName)) {
+		play(sourceName);
+		return;
+	}
+
+	switch (clipConfig(sourceName).clickAction) {
+	case SoundboardClickAction::Retrigger:
+		play(sourceName);
+		break;
+	case SoundboardClickAction::FadeOut:
+		fadeOutAndStop(sourceName);
+		break;
+	case SoundboardClickAction::Stop:
+	default:
+		stopOne(sourceName);
+		break;
+	}
+}
+
+// Ramps the source's own volume down to 0 over fadeMs, then stops it and
+// restores the volume for next time. Re-looks-up the source on every tick
+// (rather than holding a pointer across the whole fade) so a removed scene
+// item just quietly ends the fade instead of touching a dangling pointer,
+// and checks m_playGen so a stop/retrigger/second fade started in the
+// meantime supersedes this one instead of both fighting over playback state.
+void SoundboardManager::fadeOutAndStop(const std::string &sourceName, int fadeMs)
+{
+	obs_sceneitem_t *item = findItem(sourceName);
+	obs_source_t *src = item ? obs_sceneitem_get_source(item) : nullptr;
+	if (!src)
+		return;
+
+	// Fade from the recorded baseline, not whatever obs_source_get_volume
+	// returns right now - if a previous fade got superseded partway through,
+	// the live volume could already be turned down, and ramping "down" from
+	// there instead of the true starting level would leave it too quiet
+	// even after the eventual restore.
+	if (m_baseVolume.find(sourceName) == m_baseVolume.end()) {
+		float v = obs_source_get_volume(src);
+		m_baseVolume[sourceName] = (v > 0.0f) ? v : 1.0f;
+	}
+	float startVolume = m_baseVolume[sourceName];
+
+	uint64_t gen = ++m_playGen[sourceName];
+	std::string name = sourceName;
+	auto start = std::chrono::steady_clock::now();
+
+	auto *timer = new QTimer(qApp);
+	QObject::connect(timer, &QTimer::timeout, qApp, [this, name, gen, startVolume, fadeMs, start, timer]() {
+		if (m_playGen[name] != gen) {
+			timer->stop();
+			timer->deleteLater();
+			return;
+		}
+
+		obs_sceneitem_t *item = findItem(name);
+		obs_source_t *src = item ? obs_sceneitem_get_source(item) : nullptr;
+		if (!src) {
+			timer->stop();
+			timer->deleteLater();
+			return;
+		}
+
+		double elapsedMs =
+			std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+		double t = std::clamp(elapsedMs / fadeMs, 0.0, 1.0);
+		obs_source_set_volume(src, static_cast<float>(startVolume * (1.0 - t)));
+
+		if (t >= 1.0) {
+			obs_source_media_stop(src);
+			obs_source_set_volume(src, startVolume);
+			timer->stop();
+			timer->deleteLater();
+		}
+	});
+	timer->start(30);
 }
 
 void SoundboardManager::stopAll()
@@ -513,6 +613,11 @@ void SoundboardManager::loadSettings()
 					cfg.startSec = obs_data_get_double(entry, "start_sec");
 					cfg.durationSec = obs_data_get_double(entry, "duration_sec");
 					cfg.loop = obs_data_get_bool(entry, "loop");
+					if (obs_data_has_user_value(entry, "click_action")) {
+						int64_t action = obs_data_get_int(entry, "click_action");
+						if (action >= 0 && action <= 2)
+							cfg.clickAction = static_cast<SoundboardClickAction>(action);
+					}
 
 					obs_data_array_t *devices = obs_data_get_array(entry, "extra_output_devices");
 					if (devices) {
@@ -566,6 +671,7 @@ void SoundboardManager::saveSettings()
 		obs_data_set_double(entry, "start_sec", cfg.startSec);
 		obs_data_set_double(entry, "duration_sec", cfg.durationSec);
 		obs_data_set_bool(entry, "loop", cfg.loop);
+		obs_data_set_int(entry, "click_action", static_cast<int>(cfg.clickAction));
 
 		obs_data_array_t *devices = obs_data_array_create();
 		for (const auto &deviceName : cfg.extraOutputDevices) {

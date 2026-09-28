@@ -60,6 +60,40 @@ void SoundboardItemSettings::buildUI()
 	m_loopCheck->setChecked(cfg.loop);
 	root->addWidget(m_loopCheck);
 
+	auto *clickGroup = new QGroupBox("When Clicked Again");
+	auto *clickLayout = new QVBoxLayout(clickGroup);
+
+	auto *clickHint = new QLabel("What clicking this pad does while it's already playing.");
+	clickHint->setWordWrap(true);
+	clickHint->setStyleSheet("color: #999; font-size: 11px;");
+	clickLayout->addWidget(clickHint);
+
+	m_clickActionGroup = new QButtonGroup(this);
+	m_clickStopRadio = new QRadioButton("Stop");
+	m_clickFadeRadio = new QRadioButton("Fade out");
+	m_clickRetriggerRadio = new QRadioButton("Retrigger (play again from the top - DJ airhorn style)");
+	m_clickActionGroup->addButton(m_clickStopRadio, static_cast<int>(SoundboardClickAction::Stop));
+	m_clickActionGroup->addButton(m_clickFadeRadio, static_cast<int>(SoundboardClickAction::FadeOut));
+	m_clickActionGroup->addButton(m_clickRetriggerRadio, static_cast<int>(SoundboardClickAction::Retrigger));
+	clickLayout->addWidget(m_clickStopRadio);
+	clickLayout->addWidget(m_clickFadeRadio);
+	clickLayout->addWidget(m_clickRetriggerRadio);
+
+	switch (cfg.clickAction) {
+	case SoundboardClickAction::FadeOut:
+		m_clickFadeRadio->setChecked(true);
+		break;
+	case SoundboardClickAction::Retrigger:
+		m_clickRetriggerRadio->setChecked(true);
+		break;
+	case SoundboardClickAction::Stop:
+	default:
+		m_clickStopRadio->setChecked(true);
+		break;
+	}
+
+	root->addWidget(clickGroup);
+
 	auto *outGroup = new QGroupBox("Extra Outputs");
 	auto *outLayout = new QVBoxLayout(outGroup);
 
@@ -106,6 +140,7 @@ void SoundboardItemSettings::applyPending()
 	cfg.startSec = m_startSpin->value();
 	cfg.durationSec = m_durationSpin->value();
 	cfg.loop = m_loopCheck->isChecked();
+	cfg.clickAction = static_cast<SoundboardClickAction>(m_clickActionGroup->checkedId());
 	for (int i = 0; i < m_deviceList->count(); i++) {
 		auto *item = m_deviceList->item(i);
 		if (item->checkState() == Qt::Checked)

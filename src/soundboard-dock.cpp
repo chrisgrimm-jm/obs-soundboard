@@ -170,7 +170,8 @@ void SoundboardDock::refresh()
 		auto *pad = new QPushButton(sname);
 		pad->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		pad->setMinimumHeight(m_compact ? 28 : 56);
-		pad->setToolTip("Click to play/stop — right-click for trim & monitoring settings");
+		pad->setToolTip("Click to play, click again per this clip's Click Again setting — "
+				"right-click for trim & output settings");
 		stylePad(pad, false, m_compact);
 		connect(pad, &QPushButton::clicked, this, [this, sname]() { onPadClicked(sname); });
 		pad->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -226,12 +227,7 @@ void SoundboardDock::pollPlayingState()
 
 void SoundboardDock::onPadClicked(const QString &sourceName)
 {
-	auto &mgr = SoundboardManager::instance();
-	std::string name = sourceName.toStdString();
-	if (mgr.isPlaying(name))
-		mgr.stopOne(name);
-	else
-		mgr.play(name);
+	SoundboardManager::instance().triggerPad(sourceName.toStdString());
 }
 
 void SoundboardDock::onPadSettingsClicked(const QString &sourceName)
