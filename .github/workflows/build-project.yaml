@@ -189,9 +189,20 @@ jobs:
             --title 'Dev Build (main)' \
             --notes 'Latest build from main. Overwritten on every push — not a stable release.' \
             --prerelease --target ${{ github.sha }} || true
-          gh release upload dev-build \
-            ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.* \
-            --clobber
+
+          # Upload under a version-stripped filename so this rolling release
+          # always holds exactly one asset per platform instead of
+          # accumulating a new one every version bump - which left consumers
+          # (the Windows install script, `gh release download --pattern`)
+          # picking an arbitrary/oldest match instead of the latest build.
+          mkdir -p /tmp/dev-release
+          rm -f /tmp/dev-release/*
+          for f in ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*; do
+            name=$(basename "${f}")
+            stripped=${name/-${{ steps.setup.outputs.pluginVersion }}-/-}
+            cp "${f}" "/tmp/dev-release/${stripped}"
+          done
+          gh release upload dev-build /tmp/dev-release/* --clobber
 
       - uses: actions/cache/save@v4
         if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
@@ -280,9 +291,15 @@ jobs:
             --title 'Dev Build (main)' \
             --notes 'Latest build from main. Overwritten on every push — not a stable release.' \
             --prerelease --target ${{ github.sha }} || true
-          gh release upload dev-build \
-            ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.* \
-            --clobber
+
+          mkdir -p /tmp/dev-release
+          rm -f /tmp/dev-release/*
+          for f in ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*; do
+            name=$(basename "${f}")
+            stripped=${name/-${{ steps.setup.outputs.pluginVersion }}-/-}
+            cp "${f}" "/tmp/dev-release/${stripped}"
+          done
+          gh release upload dev-build /tmp/dev-release/* --clobber
 
       - uses: actions/cache/save@v4
         if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
@@ -351,6 +368,19 @@ jobs:
               --notes 'Latest build from main. Overwritten on every push — not a stable release.' `
               --prerelease --target ${{ github.sha }}
           }
+
+          # Upload under a version-stripped filename so this rolling release
+          # always holds exactly one asset per platform instead of
+          # accumulating a new one every version bump - which left consumers
+          # (this project's own install.ps1, `gh release download --pattern`)
+          # picking an arbitrary/oldest match instead of the latest build.
+          $stageDir = Join-Path $env:TEMP "dev-release"
+          Remove-Item $stageDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $stageDir | Out-Null
           $files = Get-ChildItem -Path "${{ github.workspace }}/release" `
             -Filter "${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*"
-          gh release upload dev-build $files.FullName --clobber
+          foreach ($f in $files) {
+            $stripped = $f.Name -replace [Regex]::Escape("-${{ steps.setup.outputs.pluginVersion }}-"), "-"
+            Copy-Item $f.FullName (Join-Path $stageDir $stripped)
+          }
+          gh release upload dev-build (Get-ChildItem $stageDir).FullName --clobber

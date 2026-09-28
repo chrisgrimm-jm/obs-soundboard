@@ -31,7 +31,7 @@ Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $tmp | Out-Null
 $zipPath = Join-Path $tmp "obs-soundboard.zip"
 $asset = (Invoke-RestMethod "https://api.github.com/repos/chrisgrimm-jm/obs-soundboard/releases/tags/dev-build").assets |
-	Where-Object { $_.name -like "*windows-x64.zip" } | Select-Object -First 1
+	Where-Object { $_.name -like "*windows-x64.zip" } | Sort-Object created_at -Descending | Select-Object -First 1
 Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
 Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
 
