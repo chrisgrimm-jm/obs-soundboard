@@ -60,6 +60,27 @@ void SoundboardItemSettings::buildUI()
 	m_loopCheck->setChecked(cfg.loop);
 	root->addWidget(m_loopCheck);
 
+	auto *gainGroup = new QGroupBox("Gain");
+	auto *gainLayout = new QVBoxLayout(gainGroup);
+
+	auto *gainHint = new QLabel("Per-clip volume adjustment, independent of this source's Audio Mixer "
+				    "fader. 0 dB is unchanged; negative is quieter, positive is louder.");
+	gainHint->setWordWrap(true);
+	gainHint->setStyleSheet("color: #999; font-size: 11px;");
+	gainLayout->addWidget(gainHint);
+
+	auto *gainForm = new QFormLayout();
+	m_gainSpin = new QDoubleSpinBox();
+	m_gainSpin->setRange(-60.0, 20.0);
+	m_gainSpin->setDecimals(1);
+	m_gainSpin->setSingleStep(0.5);
+	m_gainSpin->setSuffix(" dB");
+	m_gainSpin->setValue(cfg.gainDb);
+	gainForm->addRow("Gain:", m_gainSpin);
+	gainLayout->addLayout(gainForm);
+
+	root->addWidget(gainGroup);
+
 	auto *clickGroup = new QGroupBox("When Clicked Again");
 	auto *clickLayout = new QVBoxLayout(clickGroup);
 
@@ -140,6 +161,7 @@ void SoundboardItemSettings::applyPending()
 	cfg.startSec = m_startSpin->value();
 	cfg.durationSec = m_durationSpin->value();
 	cfg.loop = m_loopCheck->isChecked();
+	cfg.gainDb = static_cast<float>(m_gainSpin->value());
 	cfg.clickAction = static_cast<SoundboardClickAction>(m_clickActionGroup->checkedId());
 	for (int i = 0; i < m_deviceList->count(); i++) {
 		auto *item = m_deviceList->item(i);

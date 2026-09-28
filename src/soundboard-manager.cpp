@@ -138,14 +138,9 @@ void SoundboardManager::play(const std::string &sourceName)
 	obs_source_update(src, settings);
 	obs_data_release(settings);
 
-	// Restore true baseline volume in case a fade-out left this source
-	// turned down - captured once per source so a fade started while
-	// already mid-fade can't re-snapshot an already-reduced value.
-	if (m_baseVolume.find(sourceName) == m_baseVolume.end()) {
-		float v = obs_source_get_volume(src);
-		m_baseVolume[sourceName] = (v > 0.0f) ? v : 1.0f;
-	}
-	obs_source_set_volume(src, m_baseVolume[sourceName]);
+	// Always (re-)apply the clip's configured gain, which also resets any
+	// in-progress fade-out's volume ramp back to the correct level.
+	obs_source_set_volume(src, obs_db_to_mul(cfg.gainDb));
 
 	obs_source_media_restart(src);
 	m_playStart[sourceName] = std::chrono::steady_clock::now();
@@ -231,16 +226,12 @@ void SoundboardManager::fadeOutAndStop(const std::string &sourceName, int fadeMs
 	if (!src)
 		return;
 
-	// Fade from the recorded baseline, not whatever obs_source_get_volume
-	// returns right now - if a previous fade got superseded partway through,
-	// the live volume could already be turned down, and ramping "down" from
-	// there instead of the true starting level would leave it too quiet
-	// even after the eventual restore.
-	if (m_baseVolume.find(sourceName) == m_baseVolume.end()) {
-		float v = obs_source_get_volume(src);
-		m_baseVolume[sourceName] = (v > 0.0f) ? v : 1.0f;
-	}
-	float startVolume = m_baseVolume[sourceName];
+	// Fade from the clip's configured gain, not whatever
+	// obs_source_get_volume returns right now - if a previous fade got
+	// superseded partway through, the live volume could already be turned
+	// down, and ramping "down" from there instead of the true configured
+	// level would leave it too quiet even after the eventual restore.
+	float startVolume = obs_db_to_mul(clipConfig(sourceName).gainDb);
 
 	uint64_t gen = ++m_playGen[sourceName];
 	std::string name = sourceName;
@@ -355,6 +346,14 @@ SoundboardClipConfig SoundboardManager::clipConfig(const std::string &sourceName
 void SoundboardManager::setClipConfig(const std::string &sourceName, const SoundboardClipConfig &cfg)
 {
 	m_clipConfig[sourceName] = cfg;
+
+	// Apply gain immediately, even mid-playback, rather than waiting for the
+	// next play() - matches the settings dialog's own "Test" button, which
+	// expects the change to already be live.
+	obs_sceneitem_t *item = findItem(sourceName);
+	obs_source_t *src = item ? obs_sceneitem_get_source(item) : nullptr;
+	if (src)
+		obs_source_set_volume(src, obs_db_to_mul(cfg.gainDb));
 }
 
 // The file path OBS's own Media Source is playing, so the extra-output audio
@@ -613,6 +612,7 @@ void SoundboardManager::loadSettings()
 					cfg.startSec = obs_data_get_double(entry, "start_sec");
 					cfg.durationSec = obs_data_get_double(entry, "duration_sec");
 					cfg.loop = obs_data_get_bool(entry, "loop");
+					cfg.gainDb = static_cast<float>(obs_data_get_double(entry, "gain_db"));
 					if (obs_data_has_user_value(entry, "click_action")) {
 						int64_t action = obs_data_get_int(entry, "click_action");
 						if (action >= 0 && action <= 2)
@@ -649,6 +649,18 @@ void SoundboardManager::loadSettings()
 		obs_source_release(src);
 	}
 	registerHotkeys();
+
+	// Reflect each clip's saved gain in the Audio Mixer right away, rather
+	// than waiting for it to first be played.
+	for (const auto &clip : currentClips()) {
+		auto cfgIt = m_clipConfig.find(clip.sourceName);
+		if (cfgIt == m_clipConfig.end())
+			continue;
+		obs_sceneitem_t *item = findItem(clip.sourceName);
+		obs_source_t *clipSrc = item ? obs_sceneitem_get_source(item) : nullptr;
+		if (clipSrc)
+			obs_source_set_volume(clipSrc, obs_db_to_mul(cfgIt->second.gainDb));
+	}
 }
 
 void SoundboardManager::saveSettings()
@@ -671,6 +683,7 @@ void SoundboardManager::saveSettings()
 		obs_data_set_double(entry, "start_sec", cfg.startSec);
 		obs_data_set_double(entry, "duration_sec", cfg.durationSec);
 		obs_data_set_bool(entry, "loop", cfg.loop);
+		obs_data_set_double(entry, "gain_db", cfg.gainDb);
 		obs_data_set_int(entry, "click_action", static_cast<int>(cfg.clickAction));
 
 		obs_data_array_t *devices = obs_data_array_create();

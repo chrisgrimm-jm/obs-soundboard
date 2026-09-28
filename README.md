@@ -56,6 +56,7 @@ Each clip in your Soundboard scene gets its own pad in the dock. Click to play; 
 Right-click any pad to open its settings:
 - **Start (in point)** / **Duration** — trims playback to a specific range of the file; duration `0` plays to the file's natural end.
 - **Loop** — repeats the clip from the top on its own once it reaches the end, until stopped.
+- **Gain** — per-clip volume in dB (-60 to +20, 0 = unchanged), independent of that source's Audio Mixer fader. Applies immediately, even mid-playback.
 - **When Clicked Again** — what a second click on this pad does while it's already playing:
   - **Stop** — cuts it immediately (the default).
   - **Fade out** — ramps the volume down over half a second, then stops.

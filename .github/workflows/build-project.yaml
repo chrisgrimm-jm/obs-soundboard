@@ -195,8 +195,8 @@ jobs:
           # accumulating a new one every version bump - which left consumers
           # (the Windows install script, `gh release download --pattern`)
           # picking an arbitrary/oldest match instead of the latest build.
+          rm -rf /tmp/dev-release
           mkdir -p /tmp/dev-release
-          rm -f /tmp/dev-release/*
           for f in ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*; do
             name=$(basename "${f}")
             stripped=${name/-${{ steps.setup.outputs.pluginVersion }}-/-}
@@ -292,8 +292,8 @@ jobs:
             --notes 'Latest build from main. Overwritten on every push — not a stable release.' \
             --prerelease --target ${{ github.sha }} || true
 
+          rm -rf /tmp/dev-release
           mkdir -p /tmp/dev-release
-          rm -f /tmp/dev-release/*
           for f in ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*; do
             name=$(basename "${f}")
             stripped=${name/-${{ steps.setup.outputs.pluginVersion }}-/-}

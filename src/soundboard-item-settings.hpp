@@ -27,6 +27,7 @@ private:
 	QDoubleSpinBox *m_startSpin = nullptr;
 	QDoubleSpinBox *m_durationSpin = nullptr;
 	QCheckBox *m_loopCheck = nullptr;
+	QDoubleSpinBox *m_gainSpin = nullptr;
 	QButtonGroup *m_clickActionGroup = nullptr;
 	QRadioButton *m_clickStopRadio = nullptr;
 	QRadioButton *m_clickFadeRadio = nullptr;

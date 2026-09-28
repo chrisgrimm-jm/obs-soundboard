@@ -20,6 +20,7 @@ struct SoundboardClipConfig {
 	double startSec = 0.0;    // in-point: seek here on every play()
 	double durationSec = 0.0; // out-point, as a length; 0 = play to natural end
 	bool loop = false;        // repeat from the top on natural end, until stopped
+	float gainDb = 0.0f;      // applied via obs_db_to_mul(); 0 = unity gain
 	SoundboardClickAction clickAction = SoundboardClickAction::Stop;
 	// Extra system playback devices (by name) this clip should also play out
 	// of directly, in addition to always going through the main OBS mix.
@@ -150,10 +151,6 @@ private:
 	// trigger can't stop a clip that's since been retriggered.
 	std::unordered_map<std::string, uint64_t> m_playGen;
 	std::unordered_map<std::string, std::chrono::steady_clock::time_point> m_playStart;
-	// True per-source volume baseline, captured once so a fade-out has
-	// something correct to ramp from/restore to even if triggered again
-	// mid-fade. See play()/fadeOutAndStop().
-	std::unordered_map<std::string, float> m_baseVolume;
 
 	RefreshCallback m_refreshCb;
 };
